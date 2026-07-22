@@ -84,18 +84,19 @@ export default async function initial_data_seed({
   }
 
   // --- Region ---
+  let region: any = null
   try {
     const r = await createRegionsWorkflow(container).run({
       input: { regions: [{ name: "India", currency_code: "inr", countries, payment_providers: ["pp_system_default"] }] },
     })
-    var region = r.result[0]
+    region = r.result[0]
     logger.info("Created India region with INR.")
     await createTaxRegionsWorkflow(container).run({ input: countries.map((c) => ({ country_code: c, provider_id: "tp_system" })) })
     logger.info("Seeded tax regions.")
   } catch (_e) {
     // Region or country may already exist - look up existing
     const existing = await findExisting(query, "region", ["id", "name"])
-    var region = existing[0]
+    region = existing[0]
     logger.info("Using existing region.")
   }
 
