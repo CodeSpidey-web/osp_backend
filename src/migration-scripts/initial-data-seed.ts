@@ -298,8 +298,8 @@ export default async function initial_data_seed({
     productsToCreate.push({
       title: p.title, handle: p.handle, collection_id: p.collection.id,
       category_ids: [p.category.id], description: p.description, weight: p.weight,
-      status: ProductStatus.PUBLISHED, shipping_profile_id: shippingProfile.id,
-      images: [{ url: `http://localhost:8000/images/${p.handle}.jpg` }],
+      thumbnail: `/assets/images/product-img/electronics/${p.handle === 'raspberry-pi-4' ? 'electronics-bg-trans-03-a-1-hover.webp' : p.handle === 'arduino-uno' ? 'electronics-bg-trans-06-a-1-hover.webp' : p.handle === 'ultrasonic-sensor' ? 'electronics-bg-trans-07-a-1-hover.webp' : p.handle === 'esp32-nodemcu' ? 'electronics-bg-trans-08-a-1-hover.webp' : p.handle === 'breadboard-kit' ? 'electro-c-04.webp' : 'electro-c-01.webp'}`,
+      images: [{ url: `/assets/images/product-img/electronics/${p.handle === 'raspberry-pi-4' ? 'electronics-bg-trans-03-a-1-hover.webp' : p.handle === 'arduino-uno' ? 'electronics-bg-trans-06-a-1-hover.webp' : p.handle === 'ultrasonic-sensor' ? 'electronics-bg-trans-07-a-1-hover.webp' : p.handle === 'esp32-nodemcu' ? 'electronics-bg-trans-08-a-1-hover.webp' : p.handle === 'breadboard-kit' ? 'electro-c-04.webp' : 'electro-c-01.webp'}` }],
       options: [{ id: specOption.id }, { id: packOption.id }],
       variants: p.variants.map((v: any) => ({
         title: v.title, sku: v.sku, options: v.options,
