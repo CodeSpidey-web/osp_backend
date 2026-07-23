@@ -25,3 +25,8 @@ build
 
 .medusa/
 !.medusa/server/
+
+# Ignore backups, SQL dumps, and SSH keys
+*.key
+*.sql
+ssh-key-*
