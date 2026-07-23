@@ -2,10 +2,21 @@ const fs = require('fs');
 const readline = require('readline');
 const { Client } = require('pg');
 const { randomBytes } = require('crypto');
+const path = require('path');
 require('dotenv').config({ path: '../.env' });
 
+
 const dbUrl = process.env.DATABASE_URL || 'postgres://postgres:12345678@localhost/medusa-store';
-const csvPath = 'c:\\Users\\dilli\\Downloads\\medusa\\my-electronics-store\\techtonics_products.csv';
+
+// Dynamically resolve CSV path relative to __dirname
+let csvPath = path.join(__dirname, '../../../techtonics_products.csv');
+if (!fs.existsSync(csvPath)) {
+  csvPath = path.join(__dirname, '../techtonics_products.csv'); // fallback to apps/backend/techtonics_products.csv
+}
+if (!fs.existsSync(csvPath)) {
+  csvPath = 'techtonics_products.csv'; // fallback to local directory lookup
+}
+
 
 function generateId(prefix) {
   return prefix + '_01' + randomBytes(10).toString('hex').toUpperCase();
