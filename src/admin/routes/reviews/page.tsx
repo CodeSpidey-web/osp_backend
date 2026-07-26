@@ -180,41 +180,47 @@ const ReviewsPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-          {locations.map((loc) => (
-            <div key={loc.id} className="p-5 border rounded-xl bg-ui-bg-subtle flex flex-col justify-between gap-y-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-x-2">
-                    <Text className="font-bold text-sm">{loc.location_name}</Text>
-                    <Badge color={loc.is_active ? "green" : "grey"}>
-                      {loc.is_active ? "ACTIVE" : "INACTIVE"}
+          {loading ? (
+            <Text className="text-xs text-ui-fg-subtle">Loading locations...</Text>
+          ) : locations.length === 0 ? (
+            <Text className="text-xs text-ui-fg-subtle">No locations configured yet.</Text>
+          ) : (
+            locations.map((loc) => (
+              <div key={loc.id} className="p-5 border rounded-xl bg-ui-bg-subtle flex flex-col justify-between gap-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-x-2">
+                      <Text className="font-bold text-sm">{loc.location_name}</Text>
+                      <Badge color={loc.is_active ? "green" : "grey"}>
+                        {loc.is_active ? "ACTIVE" : "INACTIVE"}
+                      </Badge>
+                    </div>
+                    <Text className="text-xs text-ui-fg-subtle mt-1 font-mono">
+                      Place ID: {loc.place_id || "N/A"}
+                    </Text>
+                  </div>
+                  <Button variant="transparent" size="small" onClick={() => handleDeleteLocation(loc.id)}>
+                    🗑️
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-3 border-t">
+                  <div>
+                    <Text className="text-ui-fg-muted text-[11px]">Status:</Text>
+                    <Badge color={loc.sync_status === "synced" ? "green" : loc.sync_status === "failed" ? "red" : "orange"}>
+                      {loc.sync_status?.toUpperCase() || "IDLE"}
                     </Badge>
                   </div>
-                  <Text className="text-xs text-ui-fg-subtle mt-1 font-mono">
-                    Place ID: {loc.place_id || "N/A"}
-                  </Text>
-                </div>
-                <Button variant="transparent" size="small" onClick={() => handleDeleteLocation(loc.id)}>
-                  🗑️
-                </Button>
-              </div>
-
-              <div className="flex items-center justify-between text-xs pt-3 border-t">
-                <div>
-                  <Text className="text-ui-fg-muted text-[11px]">Status:</Text>
-                  <Badge color={loc.sync_status === "synced" ? "green" : loc.sync_status === "failed" ? "red" : "orange"}>
-                    {loc.sync_status?.toUpperCase() || "IDLE"}
-                  </Badge>
-                </div>
-                <div className="text-right">
-                  <Text className="text-ui-fg-muted text-[11px]">Last Synced:</Text>
-                  <Text className="font-semibold text-[11px]">
-                    {loc.last_synced_at ? new Date(loc.last_synced_at).toLocaleString() : "Never"}
-                  </Text>
+                  <div className="text-right">
+                    <Text className="text-ui-fg-muted text-[11px]">Last Synced:</Text>
+                    <Text className="font-semibold text-[11px]">
+                      {loc.last_synced_at ? new Date(loc.last_synced_at).toLocaleString() : "Never"}
+                    </Text>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </Container>
 
@@ -239,58 +245,72 @@ const ReviewsPage = () => {
             </Table.Row>
           </Table.Header>
           <Table.Body>
-            {reviews.map((r) => (
-              <Table.Row key={r.id}>
-                <Table.Cell className="flex items-center gap-x-3">
-                  {r.profile_photo_url ? (
-                    <img src={r.profile_photo_url} alt={r.author_name} className="w-8 h-8 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
-                      {r.author_name ? r.author_name.charAt(0) : "A"}
-                    </div>
-                  )}
-                  <Text className="font-medium text-xs">{r.author_name}</Text>
-                </Table.Cell>
-
-                <Table.Cell>
-                  <div className="flex items-center text-amber-500 font-bold text-xs">
-                    ⭐ {r.rating}
-                  </div>
-                </Table.Cell>
-
-                <Table.Cell className="max-w-xs">
-                  <Text className="text-xs text-ui-fg-subtle line-clamp-2">
-                    {r.review_text || "No review message"}
-                  </Text>
-                </Table.Cell>
-
-                <Table.Cell>
-                  {r.review_url ? (
-                    <a href={r.review_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">
-                      View page
-                    </a>
-                  ) : (
-                    <Text className="text-xs text-ui-fg-muted">-</Text>
-                  )}
-                </Table.Cell>
-
-                <Table.Cell>
-                  <Text className="text-xs text-ui-fg-subtle">
-                    {r.review_time ? new Date(r.review_time).toLocaleDateString() : "N/A"}
-                  </Text>
-                </Table.Cell>
-
-                <Table.Cell>
-                  <Badge color="green">{r.status || "published"}</Badge>
-                </Table.Cell>
-
-                <Table.Cell className="text-right">
-                  <Button variant="transparent" size="small" onClick={() => handleDeleteReview(r.id)}>
-                    🗑️
-                  </Button>
+            {loading ? (
+              <Table.Row>
+                <Table.Cell {...({ colSpan: 7 } as any)} className="text-center py-6 text-ui-fg-muted">
+                  Loading reviews...
                 </Table.Cell>
               </Table.Row>
-            ))}
+            ) : reviews.length === 0 ? (
+              <Table.Row>
+                <Table.Cell {...({ colSpan: 7 } as any)} className="text-center py-6 text-ui-fg-muted">
+                  No reviews found.
+                </Table.Cell>
+              </Table.Row>
+            ) : (
+              reviews.map((r) => (
+                <Table.Row key={r.id}>
+                  <Table.Cell className="flex items-center gap-x-3">
+                    {r.profile_photo_url ? (
+                      <img src={r.profile_photo_url} alt={r.author_name} referrerPolicy="no-referrer" className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                        {r.author_name ? r.author_name.charAt(0) : "A"}
+                      </div>
+                    )}
+                    <Text className="font-medium text-xs">{r.author_name}</Text>
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <div className="flex items-center text-amber-500 font-bold text-xs">
+                      ⭐ {r.rating}
+                    </div>
+                  </Table.Cell>
+
+                  <Table.Cell className="max-w-xs">
+                    <Text className="text-xs text-ui-fg-subtle line-clamp-2">
+                      {r.review_text || "No review message"}
+                    </Text>
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    {r.review_url ? (
+                      <a href={r.review_url} target="_blank" rel="noreferrer" className="text-blue-600 underline text-xs">
+                        View page
+                      </a>
+                    ) : (
+                      <Text className="text-xs text-ui-fg-muted">-</Text>
+                    )}
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <Text className="text-xs text-ui-fg-subtle">
+                      {r.review_time ? new Date(r.review_time).toLocaleDateString() : "N/A"}
+                    </Text>
+                  </Table.Cell>
+
+                  <Table.Cell>
+                    <Badge color="green">{r.status || "published"}</Badge>
+                  </Table.Cell>
+
+                  <Table.Cell className="text-right">
+                    <Button variant="transparent" size="small" onClick={() => handleDeleteReview(r.id)}>
+                      🗑️
+                    </Button>
+                  </Table.Cell>
+                </Table.Row>
+              ))
+            )}
           </Table.Body>
         </Table>
       </Container>
