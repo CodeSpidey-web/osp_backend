@@ -2,10 +2,66 @@ const { Client } = require('pg');
 const crypto = require('crypto');
 const { scrapeGoogleReviews } = require('../scripts/scraper-core.js');
 
+let tablesVerified = false;
+
+async function verifyTables(client) {
+  if (tablesVerified) return;
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS google_review_location (
+        id VARCHAR(255) PRIMARY KEY,
+        location_name VARCHAR(255) NOT NULL,
+        place_id VARCHAR(255),
+        location_url TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        sync_status VARCHAR(50) DEFAULT 'idle',
+        last_synced_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS google_review (
+        id VARCHAR(255) PRIMARY KEY,
+        google_review_location_id VARCHAR(255) REFERENCES google_review_location(id) ON DELETE CASCADE,
+        external_review_id VARCHAR(255) UNIQUE,
+        author_name VARCHAR(255) NOT NULL,
+        rating INT DEFAULT 5,
+        review_text TEXT,
+        review_time TIMESTAMP WITH TIME ZONE,
+        profile_photo_url TEXT,
+        review_url TEXT,
+        status VARCHAR(50) DEFAULT 'published',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `);
+    tablesVerified = true;
+    console.log('[Reviews Service] Google Review tables verified/created successfully.');
+  } catch (err) {
+    console.error('[Reviews Service] Error verifying/creating database tables:', err);
+  }
+}
+
 function getDbClient() {
-  return new Client({
-    connectionString: process.env.DATABASE_URL || 'postgres://postgres:root@localhost:5432/medusa_store',
+  const connectionString = process.env.DATABASE_URL || 'postgres://postgres:root@localhost:5432/medusa_store';
+  const isProd = process.env.NODE_ENV === 'production' || (!connectionString.includes('localhost') && !connectionString.includes('127.0.0.1'));
+  
+  // Log the connection target (masking credentials) to help debug production configuration issues
+  const maskedString = connectionString.replace(/:([^@:]+)@/, ':******@');
+  console.log(`[Reviews Service] Connecting to database. Target: ${maskedString} | isProdDetect: ${isProd}`);
+
+  const client = new Client({
+    connectionString,
+    ssl: isProd ? { rejectUnauthorized: false } : false,
   });
+
+  const originalConnect = client.connect.bind(client);
+  client.connect = async function() {
+    await originalConnect();
+    await verifyTables(client);
+  };
+
+  return client;
 }
 
 function getSHA256(data) {

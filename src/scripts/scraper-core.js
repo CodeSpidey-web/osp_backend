@@ -59,6 +59,27 @@ async function scrapeGoogleReviews({ placeId, locationUrl, locationName }) {
     await page.setViewport({ width: 1280, height: 1000 });
     await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' });
 
+    // Set bypass cookies for Google's consent wall
+    try {
+      await page.setCookie(
+        {
+          name: 'CONSENT',
+          value: 'YES+cb.20231205-09-p0.en+FX+907',
+          domain: '.google.com',
+          path: '/',
+        },
+        {
+          name: 'SOCS',
+          value: 'MCUBAg',
+          domain: '.google.com',
+          path: '/',
+        }
+      );
+      console.log('[Scraper] Bypassed Google consent screen via pre-injected cookies.');
+    } catch (cookieErr) {
+      console.error('[Scraper] Failed to inject bypass cookies:', cookieErr);
+    }
+
     // 1. Navigate to Google Maps Reviews Page
     await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 35000 });
 
@@ -99,6 +120,19 @@ async function scrapeGoogleReviews({ placeId, locationUrl, locationName }) {
       await page.waitForSelector('div[data-review-id]', { timeout: 10000 });
     } catch (err) {
       console.log('[Scraper] Warning: div[data-review-id] timeout. Attempting to scrape existing DOM.');
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const scratchDir = path.join(process.cwd(), 'scratch');
+        if (!fs.existsSync(scratchDir)) {
+          fs.mkdirSync(scratchDir, { recursive: true });
+        }
+        const debugPath = path.join(scratchDir, 'scraper_debug.png');
+        await page.screenshot({ path: debugPath, fullPage: true });
+        console.log(`[Scraper] Debug screenshot saved to ${debugPath}`);
+      } catch (screenshotErr) {
+        console.error('[Scraper] Failed to take debug screenshot:', screenshotErr);
+      }
     }
 
     // 5. Scroll container to load all reviews

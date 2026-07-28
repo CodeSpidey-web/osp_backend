@@ -19,6 +19,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       limit: reviewsData.limit,
     });
   } catch (err: any) {
+    console.error("[Admin Reviews GET Error]", err);
     return res.status(500).json({ error: err.message || "Failed to fetch reviews" });
   }
 }
@@ -49,6 +50,7 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
 
     return res.status(400).json({ error: "Invalid action specified" });
   } catch (err: any) {
+    console.error("[Admin Reviews POST Error]", err);
     return res.status(500).json({ error: err.message || "Failed to process admin review action" });
   }
 }
