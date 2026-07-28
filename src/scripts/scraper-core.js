@@ -33,7 +33,7 @@ async function scrapeGoogleReviews({ placeId, locationUrl, locationName }) {
   // Ensure reviews view parameters (!9m1!1b1) are present if on maps/place URL
   if (targetUrl.includes('/maps/place/') && !targetUrl.includes('!9m1!1b1')) {
     if (targetUrl.includes('data=')) {
-      targetUrl = targetUrl.replace(/data=([^&]+)/, 'data=$1!9m1!1b1');
+      targetUrl = targetUrl.replace(/data=([^?&]+)/, 'data=$1!9m1!1b1');
     } else if (targetUrl.includes('?')) {
       targetUrl = targetUrl.replace('?', '?data=!9m1!1b1&');
     }
@@ -101,12 +101,23 @@ async function scrapeGoogleReviews({ placeId, locationUrl, locationName }) {
     if (cardCount === 0) {
       console.log('[Scraper] Reviews cards not immediately visible. Attempting tab click fallback...');
       await page.evaluate(() => {
+        // 1. Try clicking standard "Reviews" tabs
         const tabs = Array.from(document.querySelectorAll('[role="tab"], button'));
         for (const tab of tabs) {
           const text = (tab.textContent || '').trim().toLowerCase();
           const ariaLabel = (tab.getAttribute('aria-label') || '').toLowerCase();
           if (text === 'reviews' || text.includes('reviews') || ariaLabel.includes('reviews')) {
             tab.click();
+            return;
+          }
+        }
+
+        // 2. Fallback: Find elements containing review counts (e.g., "49 reviews", "4.8 (49)") and click them
+        const elements = Array.from(document.querySelectorAll('span, button, a'));
+        for (const el of elements) {
+          const text = (el.textContent || '').trim().toLowerCase();
+          if (text.includes('reviews') && /\d+/.test(text)) {
+            el.click();
             return;
           }
         }
