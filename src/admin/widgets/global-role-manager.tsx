@@ -4,6 +4,15 @@ import { applySidebarRules } from "../routes/useRoleGuard"
 
 const GlobalRoleManagerWidget = () => {
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path === '/app/orders' || path === '/app/orders/' || path === '/app' || path === '/app/') {
+        window.location.replace('/app/dashboard');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     fetch("/admin/client-dashboard/me", { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw new Error("Failed to fetch profile")
