@@ -19,6 +19,9 @@
     "lint": "medusa lint",
     "seed": "medusa exec src/migration-scripts/initial-data-seed.ts",
     "import-products": "medusa exec src/migration-scripts/import-techtonics-products.ts",
+    "setup-sidebar": "medusa exec src/migration-scripts/setup-sidebar-layout.ts",
+    "clear-data": "medusa exec src/migration-scripts/clear-all-data.ts",
+    "import-categories": "medusa exec src/migration-scripts/import-scraped-categories.ts",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit"

@@ -12,25 +12,6 @@ import {
 import * as fs from "fs"
 import * as path from "path"
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = []
-  let current = ""
-  let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-    if (char === '"') {
-      inQuotes = !inQuotes
-    } else if (char === "," && !inQuotes) {
-      result.push(current.trim())
-      current = ""
-    } else {
-      current += char
-    }
-  }
-  result.push(current.trim())
-  return result
-}
-
 function parsePrice(priceStr: string): number {
   const cleaned = priceStr
     .replace(/₹/g, "")
@@ -55,17 +36,27 @@ function generateHandle(name: string): string {
   return handle
 }
 
-interface ProductEntry {
-  productName: string
-  price: number
-  stockStatus: string
-  url: string
-  categories: string[]
-}
-
 async function findExisting(query: any, entity: string, fields: string[]) {
   const result = await query.graph({ entity, fields })
   return result.data
+}
+
+interface ScrapedProduct {
+  name: string
+  sku: string
+  price_text: string
+  stock: string
+  categories: {
+    name: string
+    url: string
+    path_slugs: string[]
+  }[]
+  found_in_categories?: any[]
+  short_description_html?: string
+  description_html: string
+  images: string[]
+  source_url: string
+  local_images?: string[]
 }
 
 export default async function importTechtonicsProducts({
@@ -75,89 +66,56 @@ export default async function importTechtonicsProducts({
 }) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const productModuleService = container.resolve(ModuleRegistrationName.PRODUCT)
 
-  logger.info("Starting Techtonics product import...")
+  logger.info("Starting Techtonics JSON product import...")
 
-  // 1. Read CSV
-  const possiblePaths = [
-    path.join(process.cwd(), "techtonics_products.csv"),
-    path.join(process.cwd(), "..", "techtonics_products.csv"),
-    path.join(process.cwd(), "..", "..", "techtonics_products.csv"),
-  ]
-  let csvPath = ""
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      csvPath = p
-      break
-    }
-  }
-  if (!csvPath) {
-    logger.error("Could not find techtonics_products.csv. Tried: " + possiblePaths.join(", "))
+  const filePath = "X:/CodeSpidey/Client Demos/ecommerce_ocean/public/techtonics_scraper_fixed/techtonics_scraper/output/products.json"
+
+  if (!fs.existsSync(filePath)) {
+    logger.error(`Source file not found at: ${filePath}`)
     return
   }
-  logger.info(`Reading CSV from: ${csvPath}`)
 
-  const csvContent = fs.readFileSync(csvPath, "utf-8")
-  const lines = csvContent.split("\n")
-  const dataLines = lines.slice(1).filter((l) => l.trim().length > 0)
+  logger.info(`Reading products JSON from: ${filePath}`)
+  const fileContent = fs.readFileSync(filePath, "utf-8")
+  const scrapedProducts: ScrapedProduct[] = JSON.parse(fileContent)
+  logger.info(`Loaded ${scrapedProducts.length} products from JSON file.`)
 
-  // 2. Parse and deduplicate by URL
-  const productMap = new Map<string, ProductEntry>()
-  for (const line of dataLines) {
-    const fields = parseCSVLine(line)
-    if (fields.length < 6) continue
-    const [categoryName, , productName, priceStr, stockStatus, url] = fields
-    const price = parsePrice(priceStr)
-    const existing = productMap.get(url)
-    if (existing) {
-      if (!existing.categories.includes(categoryName)) {
-        existing.categories.push(categoryName)
-      }
-    } else {
-      productMap.set(url, {
-        productName,
-        price,
-        stockStatus: stockStatus.trim(),
-        url,
-        categories: [categoryName],
-      })
-    }
-  }
-  logger.info(`Parsed ${productMap.size} unique products from CSV`)
+  // 1. Fetch existing categories and build path key to ID map
+  const categories = await productModuleService.listProductCategories(
+    {},
+    { select: ["id", "handle", "parent_category_id"] }
+  )
 
-  // 3. Look up existing categories (case-insensitive match)
-  const categories = await findExisting(query, "product_category", [
-    "id",
-    "name",
-    "handle",
-    "parent_category_id",
-  ])
-  const categoryByName: Record<string, any> = {}
+  const categoriesMap = new Map<string, any>()
   for (const cat of categories) {
-    categoryByName[cat.name.toLowerCase().trim()] = cat
-  }
-  logger.info(`Found ${categories.length} existing categories in DB`)
-
-  // Log which categories from CSV exist vs. missing
-  const allCsvCategoryNames = new Set<string>()
-  for (const [, entry] of productMap) {
-    for (const cat of entry.categories) {
-      allCsvCategoryNames.add(cat)
-    }
-  }
-  const missingCategories: string[] = []
-  for (const catName of allCsvCategoryNames) {
-    if (!categoryByName[catName.toLowerCase().trim()]) {
-      missingCategories.push(catName)
-    }
-  }
-  if (missingCategories.length > 0) {
-    logger.warn(
-      `The following CSV categories were NOT found in the database. Products in these will be skipped:\n  - ${missingCategories.join("\n  - ")}`
-    )
+    categoriesMap.set(cat.id, cat)
   }
 
-  // 4. Find or create a "Specification" product option
+  const buildPathKey = (cat: any): string => {
+    const pathList = [cat.handle]
+    let parentId = cat.parent_category_id
+    while (parentId) {
+      const parent = categoriesMap.get(parentId)
+      if (parent) {
+        pathList.unshift(parent.handle)
+        parentId = parent.parent_category_id
+      } else {
+        break
+      }
+    }
+    return pathList.join("/")
+  }
+
+  const categoryPathIdMap = new Map<string, string>()
+  for (const cat of categories) {
+    const key = buildPathKey(cat)
+    categoryPathIdMap.set(key, cat.id)
+  }
+  logger.info(`Mapped ${categoryPathIdMap.size} database categories.`)
+
+  // 2. Find or create a "Specification" product option
   const existingOptions = await findExisting(query, "product_option", [
     "id",
     "title",
@@ -175,7 +133,7 @@ export default async function importTechtonicsProducts({
     productOption = r.result[0]
   }
 
-  // 5. Find existing entities needed for product creation
+  // 3. Find existing entities needed for product creation
   const [defaultSalesChannel] = await findExisting(query, "sales_channel", [
     "id",
     "name",
@@ -219,28 +177,37 @@ export default async function importTechtonicsProducts({
     `Found ${existingHandles.size} existing products and ${existingSkus.size} existing SKUs`
   )
 
-  // 6. Build products array
+  // 4. Build products array
   const productsToCreate: any[] = []
   const usedHandles = new Set<string>()
 
-  for (const [, entry] of productMap) {
-    // Resolve category IDs
+  for (const entry of scrapedProducts) {
+    // Resolve category IDs using path slugs
     const categoryIds: string[] = []
-    for (const catName of entry.categories) {
-      const cat = categoryByName[catName.toLowerCase().trim()]
-      if (cat) {
-        categoryIds.push(cat.id)
+    const entryCategories = entry.categories || []
+    
+    for (const cat of entryCategories) {
+      if (cat.path_slugs) {
+        const pathKey = cat.path_slugs.join("/")
+        const catId = categoryPathIdMap.get(pathKey)
+        if (catId && !categoryIds.includes(catId)) {
+          categoryIds.push(catId)
+        }
       }
     }
+
     if (categoryIds.length === 0) {
-      logger.warn(
-        `Skipping "${entry.productName.substring(0, 60)}..." - no matching category`
-      )
-      continue
+      // Fallback: match by name case-insensitive
+      for (const cat of entryCategories) {
+        const matchingCat = categories.find(c => c.name?.toLowerCase().trim() === cat.name?.toLowerCase().trim())
+        if (matchingCat && !categoryIds.includes(matchingCat.id)) {
+          categoryIds.push(matchingCat.id)
+        }
+      }
     }
 
     // Generate unique handle
-    let baseHandle = generateHandle(entry.productName)
+    let baseHandle = generateHandle(entry.name)
     if (!baseHandle) {
       baseHandle = "product"
     }
@@ -257,17 +224,44 @@ export default async function importTechtonicsProducts({
     }
     usedHandles.add(handle)
 
-    const sku = "TEC_" + handle.toUpperCase().replace(/-/g, "_")
+    // Standardize SKU
+    const sku = entry.sku ? entry.sku.trim() : "TEC_" + handle.toUpperCase().replace(/-/g, "_")
 
     if (existingSkus.has(sku)) {
-      logger.info(`Skipping "${entry.productName.substring(0, 60)}..." - SKU already exists (${sku})`)
+      logger.info(`Skipping "${entry.name.substring(0, 60)}..." - SKU already exists (${sku})`)
       continue
     }
 
+    // Process images
+    let thumbnail: string | undefined = undefined
+    const images: { url: string }[] = []
+    
+    if (entry.local_images && entry.local_images.length > 0) {
+      const normalizedPaths = entry.local_images.map(img => {
+        const normalized = '/' + img.replace(/\\/g, '/');
+        return normalized;
+      })
+      
+      thumbnail = normalizedPaths[0]
+      normalizedPaths.forEach(pathUrl => {
+        images.push({ url: pathUrl })
+      })
+    } else if (entry.images && entry.images.length > 0) {
+      thumbnail = entry.images[0]
+      entry.images.forEach(imgUrl => {
+        images.push({ url: imgUrl })
+      })
+    }
+
+    const price = parsePrice(entry.price_text)
+
     productsToCreate.push({
-      title: entry.productName,
+      title: entry.name,
       handle,
+      description: entry.description_html || "",
       category_ids: categoryIds,
+      thumbnail,
+      images,
       status: ProductStatus.PUBLISHED,
       shipping_profile_id: shippingProfile.id,
       options: [{ id: productOption.id }],
@@ -276,9 +270,9 @@ export default async function importTechtonicsProducts({
           title: "Standard",
           sku,
           manage_inventory: true,
-          allow_backorder: entry.stockStatus !== "In Stock",
+          allow_backorder: entry.stock !== "In stock",
           options: { Specification: "Standard" },
-          prices: [{ amount: entry.price, currency_code: "inr" }],
+          prices: [{ amount: price, currency_code: "inr" }],
         },
       ],
       sales_channels: [{ id: defaultSalesChannel.id }],
@@ -290,8 +284,10 @@ export default async function importTechtonicsProducts({
     return
   }
 
-  // 7. Create products in batches
-  const batchSize = 25
+  logger.info(`Batched ${productsToCreate.length} products for database insertion.`)
+
+  // 5. Create products in batches
+  const batchSize = 50
   let createdCount = 0
   for (let i = 0; i < productsToCreate.length; i += batchSize) {
     const batch = productsToCreate.slice(i, i + batchSize)
@@ -311,18 +307,20 @@ export default async function importTechtonicsProducts({
   }
   logger.info(`Successfully created ${createdCount} products.`)
 
-  // 8. Set inventory levels
+  // 6. Set inventory levels
   if (stockLocation) {
     try {
       const { data: inventoryItems } = await query.graph({
         entity: "inventory_item",
         fields: ["id"],
       })
+      
       const inventoryLevels = inventoryItems.map((item: any) => ({
         location_id: stockLocation.id,
         inventory_item_id: item.id,
         stocked_quantity: 100,
       }))
+      
       await createInventoryLevelsWorkflow(container).run({
         input: { inventory_levels: inventoryLevels },
       })

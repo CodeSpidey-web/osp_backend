@@ -29,4 +29,7 @@ build
 # Ignore backups, SQL dumps, and SSH keys
 *.key
 *.sql
-ssh-key-*
+ssh-key-*
+# debug logs
+/*.log
+password_resets.log

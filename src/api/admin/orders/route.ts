@@ -29,6 +29,7 @@ export async function GET(
 
   const mapped = orders.map((o: any) => ({
     ...o,
+    total: o.summary?.current_order_total ?? o.total ?? 0,
     custom_status: mapStatus(o.fulfillment_status, o.payment_status),
   }))
 
