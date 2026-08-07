@@ -20,12 +20,15 @@ export default async function setupSidebarLayout({
       "core:nav:/inventory": { hidden: true },
       "core:nav:/promotions": { hidden: true },
       "core:nav:/price-lists": { hidden: true },
+      "core:nav:/customer-groups": { hidden: true },
       "core:nav:/dashboard": { order: 0 },
       "core:nav:/products": { order: 1 },
       "core:nav:/order-management": { order: 2 },
       "core:nav:/inventory-management": { order: 3 },
       "core:nav:/customers": { order: 4 },
-      "core:nav:/website-settings": { order: 5 },
+      "core:nav:/product-reviews": { order: 5 },
+      "core:nav:/project-enquiries": { order: 6 },
+      "core:nav:/website-settings": { order: 7 },
     },
   }
 

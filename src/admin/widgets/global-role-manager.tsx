@@ -159,6 +159,77 @@ const GlobalRoleManagerWidget = () => {
               el.parentElement.setAttribute('data-hide-product-field', 'true');
             }
           }
+
+          // Helper to hide container of a label
+          const hideFieldContainer = (targetEl: any) => {
+            let parent = targetEl.parentElement;
+            let found = false;
+            let depth = 0;
+            while (parent && parent !== containerEl && depth < 4) {
+              if (parent.querySelector('input') || parent.querySelector('select') || parent.querySelector('button') || parent.querySelector('[role="combobox"]') || parent.classList.contains('flex-col') || parent.classList.contains('grid')) {
+                parent.setAttribute('data-hide-product-field', 'true');
+                found = true;
+                break;
+              }
+              parent = parent.parentElement;
+              depth++;
+            }
+            if (!found && targetEl.parentElement) {
+              targetEl.parentElement.setAttribute('data-hide-product-field', 'true');
+            }
+          };
+
+          // 6. Hide Subtitle
+          if (elText === 'subtitle' || (elText.includes('subtitle') && elText.includes('optional'))) {
+            hideFieldContainer(el);
+          }
+
+          // 7. Hide Handle
+          if (elText === 'handle' || (elText.includes('handle') && elText.includes('optional'))) {
+            hideFieldContainer(el);
+          }
+
+          // 8. Hide Customs & Shipping (HS Code, Country of Origin, MID Code)
+          if (
+            elText === 'hs code' || 
+            elText === 'mid code' || 
+            elText.includes('country of origin') || 
+            elText.includes('harmonized system code')
+          ) {
+            hideFieldContainer(el);
+          }
+
+          // 9. Hide Dimensions (Width, Height, Length, Weight)
+          if (
+            elText === 'width' || 
+            elText === 'height' || 
+            elText === 'length' || 
+            elText === 'weight'
+          ) {
+            hideFieldContainer(el);
+          }
+
+          // 10. Hide Sales Channels and Metadata sections/fields
+          if (
+            elText === 'sales channels' || 
+            elText === 'sales_channels' || 
+            elText === 'metadata'
+          ) {
+            hideFieldContainer(el);
+          }
+
+          // 11. Hide entire card blocks/sections for Customs, Dimensions, Sales Channels, and Metadata on product page
+          if (
+            elText === 'customs' || 
+            elText === 'sales channels' || 
+            elText === 'metadata' ||
+            elText === 'dimensions'
+          ) {
+            const cardBlock = el.closest('div.border, div.bg-card, section, [role="tabpanel"]');
+            if (cardBlock && containerEl.contains(cardBlock)) {
+              cardBlock.setAttribute('data-hide-product-field', 'true');
+            }
+          }
         });
       });
     };

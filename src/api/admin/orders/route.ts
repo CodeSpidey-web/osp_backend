@@ -12,8 +12,6 @@ export async function GET(
       "id",
       "display_id",
       "status",
-      "fulfillment_status",
-      "payment_status",
       "total",
       "currency_code",
       "email",
@@ -24,14 +22,37 @@ export async function GET(
       "items.title",
       "items.quantity",
       "summary.current_order_total",
+      "payment_collections.status",
+      "payment_collections.captured_amount",
+      "fulfillments.shipped_at",
+      "fulfillments.delivered_at",
     ],
   })
 
-  const mapped = orders.map((o: any) => ({
-    ...o,
-    total: o.summary?.current_order_total ?? o.total ?? 0,
-    custom_status: mapStatus(o.fulfillment_status, o.payment_status),
-  }))
+  const mapped = orders.map((o: any) => {
+    const totalVal = o.summary?.current_order_total?.numeric_ ?? 
+                    o.total?.numeric_ ?? 
+                    o.summary?.current_order_total ?? 
+                    o.total ?? 
+                    0;
+
+    const hasCapturedPayment = o.payment_collections?.some(
+      (pc: any) => pc.status === "completed" || (pc.captured_amount && Number(pc.captured_amount) > 0)
+    );
+    const resolvedPaymentStatus = hasCapturedPayment ? "captured" : "not_paid";
+
+    let resolvedFulfillmentStatus = "not_fulfilled";
+    if (o.fulfillments && o.fulfillments.length > 0) {
+      const isShipped = o.fulfillments.some((f: any) => f.shipped_at || f.delivered_at);
+      resolvedFulfillmentStatus = isShipped ? "shipped" : "fulfilled";
+    }
+
+    return {
+      ...o,
+      total: totalVal,
+      custom_status: mapStatus(resolvedFulfillmentStatus, resolvedPaymentStatus),
+    };
+  })
 
   res.json({ orders: mapped })
 }

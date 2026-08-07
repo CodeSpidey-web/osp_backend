@@ -1,6 +1,15 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { createShippingOptionsWorkflow } from "@medusajs/medusa/core-flows";
 
+function parseMetadata(raw: any): Record<string, any> {
+  if (!raw) return {}
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) || {} } catch { return {} }
+  }
+  if (typeof raw === "object" && !Array.isArray(raw)) return raw
+  return {}
+}
+
 export async function GET(
   req: MedusaRequest,
   res: MedusaResponse
@@ -11,35 +20,30 @@ export async function GET(
   const productModuleService = req.scope.resolve("product") as any
 
   try {
-    // 1. Fetch store info
     const { data: stores } = await query.graph({
       entity: "store",
       fields: ["id", "name", "metadata"],
     })
     const store = stores[0]
+    const metadata = parseMetadata(store?.metadata)
 
-    // 2. Fetch tax region and rates for India (country code "in")
     let taxRegions = await taxService.listTaxRegions({ country_code: "in" }, { relations: ["tax_rates.rules"] })
     let taxRegion = taxRegions[0]
 
     if (!taxRegion) {
-      // If it doesn't exist, create it dynamically
       const newRegions = await taxService.createTaxRegions([{ country_code: "in", provider_id: "tp_system" }])
       taxRegion = newRegions[0]
       taxRegion.tax_rates = []
     }
 
-    // 3. Find default tax rate
     const defaultRateObj = taxRegion.tax_rates?.find((r: any) => r.is_default)
     const taxRate = defaultRateObj ? defaultRateObj.rate : 18
 
-    // 4. Fetch price preference (tax inclusive setting) for INR and regions
     const isTaxInclusiveRes = await db.raw(
-      "SELECT is_tax_inclusive FROM price_preference WHERE attribute = 'currency_code' AND value = 'inr'"
+      "SELECT is_tax_inclusive FROM price_preference WHERE attribute = 'currency_code' AND value = 'INR'"
     )
     const isTaxInclusive = isTaxInclusiveRes.rows[0]?.is_tax_inclusive ?? false
 
-    // 5. Gather custom tax rate overrides and their product titles
     const overrides = taxRegion.tax_rates
       ?.filter((r: any) => !r.is_default && r.rules?.some((rule: any) => rule.reference === "product"))
       ?.map((r: any) => {
@@ -63,18 +67,38 @@ export async function GET(
       }
     }
 
+    const shipPriceRes = await db.raw(`
+      SELECT p.amount
+      FROM price p
+      JOIN shipping_option_price_set ps ON ps.price_set_id = p.price_set_id
+      JOIN shipping_option so ON so.id = ps.shipping_option_id
+      WHERE so.name = 'Standard Shipping' AND LOWER(p.currency_code) = 'inr'
+      LIMIT 1
+    `)
+    const actualShipping = shipPriceRes.rows[0] ? Number(shipPriceRes.rows[0].amount) / 100 : null
+
+    const deliveryEstimateRaw = metadata.delivery_estimate
+    const deliveryEstimate = (typeof deliveryEstimateRaw === "string" && deliveryEstimateRaw.trim() !== "")
+      ? deliveryEstimateRaw
+      : "Within 3-5 working days"
+
+    const flatRateFromMeta = metadata.flat_shipping_rate
+    const shippingGstFromMeta = metadata.shipping_gst
+    const freeShipThresholdFromMeta = metadata.free_shipping_threshold
+
     res.json({
       store_id: store.id,
       name: store.name,
-      logo_url: store.metadata?.logo_url || "",
-      phone: store.metadata?.phone || "",
-      email: store.metadata?.email || "",
+      logo_url: typeof metadata.logo_url === "string" ? metadata.logo_url : "",
+      phone: typeof metadata.phone === "string" ? metadata.phone : "",
+      email: typeof metadata.email === "string" ? metadata.email : "",
       tax_rate: taxRate,
       is_tax_inclusive: isTaxInclusive,
       tax_overrides: overrides,
-      flat_shipping_rate: store.metadata?.flat_shipping_rate !== undefined ? Number(store.metadata?.flat_shipping_rate) : 70,
-      shipping_gst: store.metadata?.shipping_gst !== undefined ? Number(store.metadata?.shipping_gst) : 18,
-      free_shipping_threshold: store.metadata?.free_shipping_threshold !== undefined ? Number(store.metadata?.free_shipping_threshold) : 999
+      flat_shipping_rate: actualShipping ?? (flatRateFromMeta !== undefined && flatRateFromMeta !== null ? Number(flatRateFromMeta) : 70),
+      shipping_gst: shippingGstFromMeta !== undefined && shippingGstFromMeta !== null ? Number(shippingGstFromMeta) : 18,
+      free_shipping_threshold: freeShipThresholdFromMeta !== undefined && freeShipThresholdFromMeta !== null ? Number(freeShipThresholdFromMeta) : 999,
+      delivery_estimate: deliveryEstimate
     })
   } catch (error: any) {
     res.status(500).json({ message: error.message || "An error occurred retrieving settings" })
@@ -94,7 +118,8 @@ export async function POST(
     tax_overrides,
     flat_shipping_rate,
     shipping_gst,
-    free_shipping_threshold
+    free_shipping_threshold,
+    delivery_estimate
   } = req.body as {
     logo_url: string
     phone: string
@@ -110,6 +135,7 @@ export async function POST(
     flat_shipping_rate: number
     shipping_gst: number
     free_shipping_threshold: number
+    delivery_estimate: string
   }
 
   const query = req.scope.resolve("query")
@@ -118,27 +144,66 @@ export async function POST(
   const db = req.scope.resolve("__pg_connection__") as any
 
   try {
-    // 1. Update store metadata
     const { data: stores } = await query.graph({
       entity: "store",
       fields: ["id", "metadata"],
     })
     const store = stores[0]
+    const rawExistingMetadata = store?.metadata
+    const existingMeta = parseMetadata(rawExistingMetadata)
+
+    console.log("[admin/settings POST] raw existing metadata type:", typeof rawExistingMetadata, "value:", JSON.stringify(rawExistingMetadata))
+    console.log("[admin/settings POST] parsed existing keys:", Object.keys(existingMeta))
+    console.log("[admin/settings POST] incoming delivery_estimate:", JSON.stringify(delivery_estimate), "type:", typeof delivery_estimate)
+
+    const sanitizedDeliveryEstimate = (typeof delivery_estimate === "string" && delivery_estimate.trim() !== "")
+      ? delivery_estimate
+      : "Within 3-5 working days"
 
     const updatedMetadata = {
-      ...(store.metadata || {}),
-      logo_url,
-      phone,
-      email,
-      flat_shipping_rate: Number(flat_shipping_rate),
-      shipping_gst: Number(shipping_gst),
-      free_shipping_threshold: Number(free_shipping_threshold)
+      ...existingMeta,
+      logo_url: typeof logo_url === "string" ? logo_url : "",
+      phone: typeof phone === "string" ? phone : "",
+      email: typeof email === "string" ? email : "",
+      flat_shipping_rate: Number(flat_shipping_rate) || 0,
+      shipping_gst: Number(shipping_gst) || 0,
+      free_shipping_threshold: Number(free_shipping_threshold) || 0,
+      delivery_estimate: sanitizedDeliveryEstimate
     }
 
-    await storeModuleService.updateStores({
-      id: store.id,
-      metadata: updatedMetadata,
-    })
+    console.log("[admin/settings POST] updatedMetadata.delivery_estimate:", JSON.stringify(updatedMetadata.delivery_estimate))
+
+    let updateSucceeded = false
+
+    try {
+      const metadataJson = JSON.stringify(updatedMetadata)
+      console.log("[admin/settings POST] Writing metadata via raw SQL for store id:", store.id, "json length:", metadataJson.length)
+
+      const updateRes = await db.raw(
+        `UPDATE store SET metadata = ?::jsonb WHERE id = ? RETURNING id, metadata`,
+        [metadataJson, store.id]
+      )
+
+      if (updateRes?.rows?.length > 0) {
+        const writtenMeta = updateRes.rows[0].metadata
+        const parsedWritten = parseMetadata(writtenMeta)
+        console.log("[admin/settings POST] SQL UPDATE succeeded! DB now has delivery_estimate:", JSON.stringify(parsedWritten.delivery_estimate))
+        console.log("[admin/settings POST] DB metadata keys:", Object.keys(parsedWritten))
+        updateSucceeded = true
+      } else {
+        console.warn("[admin/settings POST] SQL UPDATE returned no rows, falling back to module service")
+      }
+    } catch (sqlErr: any) {
+      console.warn("[admin/settings POST] SQL UPDATE failed:", sqlErr?.message || sqlErr, "- falling back to module service")
+    }
+
+    if (!updateSucceeded) {
+      await storeModuleService.updateStores({
+        id: store.id,
+        metadata: updatedMetadata,
+      })
+      console.log("[admin/settings POST] Used module service fallback for updateStores (id:", store.id, ")")
+    }
 
     // 2. Fetch/update India tax region & default tax rate
     let taxRegions = await taxService.listTaxRegions({ country_code: "in" }, { relations: ["tax_rates.rules"] })
@@ -154,7 +219,7 @@ export async function POST(
     const targetTaxRateVal = isNaN(Number(tax_rate)) ? 18 : Number(tax_rate)
 
     if (defaultRateObj) {
-      await taxService.updateTaxRates({ id: defaultRateObj.id, rate: targetTaxRateVal })
+      await taxService.updateTaxRates({ id: defaultRateObj.id }, { rate: targetTaxRateVal })
     } else {
       await taxService.createTaxRates({
         tax_region_id: taxRegion.id,
@@ -168,7 +233,7 @@ export async function POST(
     // 3. Update price_preference values (tax inclusivity) in DB
     const taxInclusiveBool = !!is_tax_inclusive
     await db.raw(
-      "UPDATE price_preference SET is_tax_inclusive = ? WHERE attribute = 'currency_code' AND value = 'inr'",
+      "UPDATE price_preference SET is_tax_inclusive = ? WHERE attribute = 'currency_code' AND value = 'INR'",
       [taxInclusiveBool]
     )
     await db.raw(
@@ -191,7 +256,7 @@ export async function POST(
       const priceSetId = priceSetRes.rows[0]?.price_set_id
       if (priceSetId) {
         await db.raw(
-          "UPDATE price SET amount = ? WHERE price_set_id = ? AND currency_code = 'inr'",
+          "UPDATE price SET amount = ? WHERE price_set_id = ? AND LOWER(currency_code) = 'inr'",
           [Number(flat_shipping_rate) * 100, priceSetId]
         )
       }
@@ -214,7 +279,7 @@ export async function POST(
             service_zone_id: eo.service_zone_id,
             shipping_profile_id: eo.shipping_profile_id,
             type: { label: "Free", description: "Free shipping.", code: "free" },
-            prices: [{ currency_code: "inr", amount: 0 }],
+            prices: [{ currency_code: "INR", amount: 0 }],
             rules: [
               { attribute: "enabled_in_store", value: "true", operator: "eq" },
               { attribute: "is_return", value: "false", operator: "eq" }
@@ -237,7 +302,7 @@ export async function POST(
       const existingShippingRateId = existingShippingRateRes.rows[0]?.id
 
       if (existingShippingRateId) {
-        await taxService.updateTaxRates({ id: existingShippingRateId, rate: targetShippingGst })
+        await taxService.updateTaxRates({ id: existingShippingRateId }, { rate: targetShippingGst })
       } else {
         await taxService.createTaxRates({
           tax_region_id: taxRegion.id,

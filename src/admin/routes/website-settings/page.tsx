@@ -21,11 +21,19 @@ const WebsiteSettingsPage = () => {
   const [flatShippingRate, setFlatShippingRate] = useState<number>(70)
   const [shippingGst, setShippingGst] = useState<number>(18)
   const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(999)
+  const [deliveryEstimate, setDeliveryEstimate] = useState<string>("Within 3-5 working days")
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null)
+
+  // Password update states
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [pwdSaving, setPwdSaving] = useState(false)
+  const [pwdMessage, setPwdMessage] = useState<{ text: string; type: "success" | "error" } | null>(null)
 
   useEffect(() => {
     if (authLoading || !authorized) return
@@ -42,6 +50,7 @@ const WebsiteSettingsPage = () => {
         setFlatShippingRate(data.flat_shipping_rate !== undefined ? data.flat_shipping_rate : 70)
         setShippingGst(data.shipping_gst !== undefined ? data.shipping_gst : 18)
         setFreeShippingThreshold(data.free_shipping_threshold !== undefined ? data.free_shipping_threshold : 999)
+        setDeliveryEstimate(data.delivery_estimate || "Within 3-5 working days")
       })
       .catch((err) => console.error("Error loading settings:", err))
       .finally(() => setLoading(false))
@@ -153,7 +162,8 @@ const WebsiteSettingsPage = () => {
           })),
           flat_shipping_rate: flatShippingRate,
           shipping_gst: shippingGst,
-          free_shipping_threshold: freeShippingThreshold
+          free_shipping_threshold: freeShippingThreshold,
+          delivery_estimate: deliveryEstimate
         }),
         credentials: "include",
       })
@@ -167,6 +177,45 @@ const WebsiteSettingsPage = () => {
       setMessage({ text: err.message || "Failed to save website settings.", type: "error" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPwdSaving(true)
+    setPwdMessage(null)
+
+    if (newPassword !== confirmPassword) {
+      setPwdMessage({ text: "New passwords do not match.", type: "error" })
+      setPwdSaving(false)
+      return
+    }
+
+    try {
+      const res = await fetch("/admin/client-dashboard/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword
+        }),
+        credentials: "include",
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to update password.")
+      }
+
+      setPwdMessage({ text: "Password updated successfully!", type: "success" })
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (err: any) {
+      setPwdMessage({ text: err.message || "Failed to update password.", type: "error" })
+    } finally {
+      setPwdSaving(false)
     }
   }
 
@@ -287,6 +336,17 @@ const WebsiteSettingsPage = () => {
                 />
               </div>
             </div>
+
+            <div className="space-y-2 pt-4 border-t border-ui-border-base">
+              <Label className="text-xs text-ui-fg-subtle font-medium">Delivery Estimate</Label>
+              <Input
+                type="text"
+                size="small"
+                value={deliveryEstimate}
+                onChange={(e) => setDeliveryEstimate(e.target.value)}
+                placeholder="Within 3-5 working days"
+              />
+            </div>
           </div>
 
           {/* Submit Actions */}
@@ -302,6 +362,79 @@ const WebsiteSettingsPage = () => {
             </Button>
           </div>
 
+        </Container>
+      </form>
+
+      {/* Change Password Form */}
+      <form onSubmit={handleChangePassword}>
+        <Container className="p-0 overflow-hidden divide-y divide-ui-border-base mt-6">
+          <div className="p-4 sm:p-6 space-y-6">
+            <div>
+               <Heading level="h2" className="text-sm sm:text-base font-semibold text-ui-fg-base mb-1">Change Account Password</Heading>
+               <Text className="text-ui-fg-subtle text-xs">Update your admin login password securely. You will need to enter your current password to verify identity.</Text>
+            </div>
+
+            {pwdMessage && (
+              <div className={`p-3 sm:p-4 border rounded-lg text-xs sm:text-sm ${
+                pwdMessage.type === "success" 
+                  ? "bg-ui-bg-success-subtle border-ui-border-success text-ui-fg-success" 
+                  : "bg-ui-bg-error-subtle border-ui-border-error text-ui-fg-error"
+              }`}>
+                {pwdMessage.text}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-ui-fg-subtle font-medium">Current Password</Label>
+                <Input
+                  type="password"
+                  size="small"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-ui-fg-subtle font-medium">New Password</Label>
+                <Input
+                  type="password"
+                  size="small"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-ui-fg-subtle font-medium">Confirm New Password</Label>
+                <Input
+                  type="password"
+                  size="small"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Actions */}
+          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-ui-bg-subtle flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-x-2">
+            <Button 
+              type="submit" 
+              variant="primary" 
+              size="small"
+              disabled={pwdSaving}
+              className="w-full sm:w-auto"
+            >
+              {pwdSaving ? "Updating Password..." : "Update Password"}
+            </Button>
+          </div>
         </Container>
       </form>
     </div>

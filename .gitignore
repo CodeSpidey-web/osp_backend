@@ -32,4 +32,5 @@ build
 ssh-key-*
 # debug logs
 /*.log
-password_resets.log
+password_resets.log
+/*.js

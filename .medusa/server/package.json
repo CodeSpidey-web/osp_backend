@@ -24,9 +24,11 @@
     "import-categories": "medusa exec src/migration-scripts/import-scraped-categories.ts",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
-    "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit"
+    "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
+    "postinstall": "node patch_medusa_razorpay.js"
   },
   "dependencies": {
+    "@alchemilla/medusa-razorpay": "^0.1.0",
     "@medusajs/admin-sdk": "2.17.2",
     "@medusajs/admin-shared": "2.17.2",
     "@medusajs/caching": "2.17.2",
@@ -37,6 +39,9 @@
     "@medusajs/medusa": "2.17.2",
     "@medusajs/ui": "4.1.19",
     "@tanstack/react-query": "5.64.2",
+    "@types/nodemailer": "^8.0.1",
+    "nodemailer": "^9.0.4",
+    "pg": "^8.22.0",
     "react": "^18.3.1",
     "react-aria": "3.50.0",
     "react-dom": "^18.3.1",

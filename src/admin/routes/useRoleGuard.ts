@@ -57,6 +57,8 @@ export function applySidebarRules(userEmail: string | null) {
       div:has(> a[href="/app/price-lists"]),
       li:has(a[href="/app/inventory"]),
       div:has(> a[href="/app/inventory"]),
+      li:has(a[href="/app/customer-groups"]),
+      div:has(> a[href="/app/customer-groups"]),
       li:has(a[href="/app/settings"]),
       div:has(> a[href="/app/settings"]),
       li:has(a[href*="/reservations"]),
@@ -72,6 +74,21 @@ export function applySidebarRules(userEmail: string | null) {
 
       /* Hide direct documentation links */
       a[href*="docs.medusajs.com"] {
+        display: none !important;
+      }
+
+      /* Hide top-bar layout customize button */
+      button[aria-label*="Customize"],
+      button[aria-label*="customize"],
+      button[title*="Customize"],
+      button[title*="customize"] {
+        display: none !important;
+      }
+
+      /* Hide the entire sub-menu container under Customers to remove the empty dropdown wrapper space */
+      ul:has(a[href*="customer-groups"]),
+      div:has(> a[href*="customer-groups"]),
+      ul:has(a[href="/app/customer-groups"]) {
         display: none !important;
       }
       
@@ -193,11 +210,13 @@ export function applySidebarRules(userEmail: string | null) {
 
     // Clean menu items immediately
     cleanDropdownMenuItems()
+    cleanSidebarCustomersItem()
 
     // Observe document.body to instantly hide popover items when the dropdown popup renders
     if (!menuObserver) {
       menuObserver = new MutationObserver(() => {
         cleanDropdownMenuItems()
+        cleanSidebarCustomersItem()
       })
       menuObserver.observe(document.body, { childList: true, subtree: true })
     }
@@ -259,9 +278,49 @@ function cleanDropdownMenuItems() {
       text === "changelog" || 
       text === "shortcuts" || 
       text === "keyboard shortcuts" || 
-      text === "documentation"
+      text === "documentation" ||
+      text === "customize"
     ) {
       (item as HTMLElement).style.setProperty("display", "none", "important")
     }
+  })
+}
+
+function cleanSidebarCustomersItem() {
+  const customersLinks = document.querySelectorAll(
+    'aside a[href="/app/customers"], nav a[href="/app/customers"], [role="navigation"] a[href="/app/customers"]'
+  )
+
+  customersLinks.forEach((link) => {
+    let itemEl = link.parentElement
+    if (!itemEl) return
+
+    // Hide any sibling collapsible sub-menus/ul wrappers
+    let sibling = itemEl.nextElementSibling
+    if (sibling && (sibling.tagName === "UL" || sibling.tagName === "DIV" || sibling.outerHTML.includes("groups"))) {
+      (sibling as HTMLElement).style.setProperty("display", "none", "important")
+    }
+
+    // Hide chevron SVG icons inside/next to the link
+    const svgs = itemEl.querySelectorAll("svg")
+    svgs.forEach((svg) => {
+      const html = svg.outerHTML.toLowerCase()
+      const paths = svg.querySelectorAll("path")
+      let isChevron = false
+      paths.forEach((path) => {
+        const d = path.getAttribute("d") || ""
+        if (d.includes("m6") || d.includes("M6") || d.includes("m9") || d.includes("M9") || d.includes("m19") || d.includes("M19")) {
+          isChevron = true
+        }
+      })
+      if (
+        svg.classList.contains("chevron") || 
+        html.includes("chevron") ||
+        html.includes("arrow") ||
+        isChevron
+      ) {
+        (svg as HTMLElement).style.setProperty("display", "none", "important")
+      }
+    })
   })
 }

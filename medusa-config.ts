@@ -1,4 +1,4 @@
-import { loadEnv, defineConfig } from '@medusajs/framework/utils'
+import { loadEnv, defineConfig, Modules } from '@medusajs/framework/utils'
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -15,5 +15,26 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     }
-  }
+  },
+  modules: {
+    [Modules.PAYMENT]: {
+      resolve: "@medusajs/medusa/payment",
+      options: {
+        providers: [
+          {
+            resolve: "@alchemilla/medusa-razorpay/providers/payment-razorpay/src",
+            id: "razorpay",
+            options: {
+              key_id: process.env.RAZORPAY_ID || "",
+              key_secret: process.env.RAZORPAY_SECRET || "",
+              razorpay_account: process.env.RAZORPAY_ACCOUNT || "",
+              webhook_secret: process.env.RAZORPAY_WEBHOOK_SECRET || "",
+              auto_capture: true,
+              automatic_expiry_period: 20,
+            },
+          },
+        ],
+      },
+    },
+  },
 })
