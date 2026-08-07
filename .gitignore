@@ -33,4 +33,5 @@ ssh-key-*
 # debug logs
 /*.log
 password_resets.log
-/*.js
+/*.js
+!/patch_medusa_razorpay.js
