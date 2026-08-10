@@ -145,7 +145,7 @@ export default async function orderFulfillmentCreatedHandler({
     const itemsHtml = (order.items || [])
       .map((item: any) => {
         const qty = item.detail?.quantity ?? item.quantity ?? 1
-        const total = ((item.unit_price ?? 0) * qty) / 100
+        const total = ((item.unit_price ?? 0) * qty)
         return `
           <tr style="border-bottom: 1px solid #f1f3f5;">
             <td style="padding: 10px 0; color: #2d3748;">${item.title}</td>

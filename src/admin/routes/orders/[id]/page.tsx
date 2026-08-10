@@ -1,7 +1,8 @@
 import { Container, Heading, Table, Badge, Text, Button } from "@medusajs/ui"
 import { useEffect, useState } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { useRoleGuard } from "../../useRoleGuard"
+import { useRoleGuard } from "../../../utils/useRoleGuard"
+import MarkShippedDialog from "../../../components/MarkShippedDialog"
 
 type OrderItem = {
   id: string
@@ -50,12 +51,22 @@ type OrderDetail = {
       captured_at?: string | null
     }[]
   }[]
+  fulfillments?: {
+    id: string
+    shipped_at?: string | null
+    delivered_at?: string | null
+    metadata?: Record<string, any> | null
+    labels?: {
+      tracking_number: string
+      tracking_url: string
+    }[]
+  }[]
 }
 
 const statusColors: Record<string, "grey" | "orange" | "green"> = {
   Pending: "grey",
   Processing: "orange",
-  Delivered: "green",
+  Shipped: "green",
 }
 
 const ArrowLeftIcon = () => (
@@ -73,10 +84,11 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionPending, setActionPending] = useState(false)
+  const [shipDialogOpen, setShipDialogOpen] = useState(false)
 
   const loadOrder = () => {
     setLoading(true)
-    fetch(`/admin/orders/${id}`, { credentials: "include" })
+    fetch(`/admin/orders/${id}?expand=fulfillments.labels`, { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw new Error("Order not found or access denied")
         return r.json()
@@ -96,7 +108,7 @@ export default function OrderDetailPage() {
   }, [authLoading, authorized, id])
 
   const mapStatus = (fulfillment: string, payment: string): string => {
-    if (fulfillment === "fulfilled" || fulfillment === "shipped") return "Delivered"
+    if (fulfillment === "fulfilled" || fulfillment === "shipped") return "Shipped"
     if (fulfillment === "partially_fulfilled" || payment === "captured") return "Processing"
     return "Pending"
   }
@@ -105,7 +117,7 @@ export default function OrderDetailPage() {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
       currency: "INR",
-    }).format(amount / 100)
+    }).format(amount)
   }
 
   const handleUpdateStatus = async (status: "Processing" | "Delivered") => {
@@ -113,7 +125,7 @@ export default function OrderDetailPage() {
     const confirmMessage = 
       status === "Processing" 
         ? "Capture payment for this order and transition status to Processing?" 
-        : "Fulfill all items, register shipment and mark this order as Delivered?"
+        : "Fulfill all items, enter courier & tracking details and mark this order as Shipped?"
         
     if (!confirm(confirmMessage)) return
 
@@ -131,6 +143,32 @@ export default function OrderDetailPage() {
         throw new Error(errData.message || "Failed to update status on server.")
       }
 
+      loadOrder()
+    } catch (err: any) {
+      alert(err.message || "An error occurred updating order status")
+    } finally {
+      setActionPending(false)
+    }
+  }
+
+  const handleConfirmShip = async (courierName: string, trackingNumber: string) => {
+    if (!order) return
+
+    setActionPending(true)
+    try {
+      const res = await fetch(`/admin/client-dashboard/orders/${order.id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Delivered", courierName, trackingNumber }),
+        credentials: "include",
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.message || "Failed to update status on server.")
+      }
+
+      setShipDialogOpen(false)
       loadOrder()
     } catch (err: any) {
       alert(err.message || "An error occurred updating order status")
@@ -177,6 +215,12 @@ export default function OrderDetailPage() {
   }
 
   const customStatus = mapStatus(order.fulfillment_status, order.payment_status)
+
+  const trackingFulfillment = order.fulfillments?.find((f) =>
+    f.labels?.some((l) => l.tracking_number)
+  )
+  const trackingLabel = trackingFulfillment?.labels?.find((l) => l.tracking_number)
+  const trackingCourier = trackingFulfillment?.metadata?.courier_name || null
 
   const displaySubtotal = order.items?.reduce((sum, item) => sum + item.total, 0) || order.item_subtotal || order.subtotal || 0;
   // GST (included) mirrors the customer-facing checkout calculation: all INR
@@ -311,28 +355,56 @@ export default function OrderDetailPage() {
               {order.payment_status === "captured" && order.fulfillment_status !== "fulfilled" && (
                 <div className="mt-2 border border-dashed border-slate-700 rounded-lg p-4 bg-slate-900/50 flex flex-col gap-y-3">
                   <Text className="text-xs text-slate-400">
-                    All items are paid. Ready to dispatch shipping package.
+                    All items are paid. Enter the courier's AWB / tracking number to ship this package and
+                    email the customer a live tracking link.
                   </Text>
                   <Button 
                     variant="primary" 
                     disabled={actionPending}
-                    onClick={() => handleUpdateStatus("Delivered")}
+                    onClick={() => setShipDialogOpen(true)}
                     className="w-full flex justify-center py-2"
                   >
-                    {actionPending ? "Processing..." : "Mark Shipped & Deliver"}
+                    {actionPending ? "Processing..." : "Mark Shipped — Enter Courier & Tracking"}
                   </Button>
                 </div>
               )}
               {order.fulfillment_status === "fulfilled" && (
-                <div className="mt-1 border border-solid border-slate-800 rounded-lg p-3 bg-emerald-950/20 text-emerald-400 text-xs flex items-center gap-x-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                  Order items have been shipped and delivered.
+                <div className="mt-1 border border-solid border-slate-800 rounded-lg p-3 bg-emerald-950/20 text-emerald-400 text-xs flex flex-col gap-y-2">
+                  <span className="flex items-center gap-x-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    Order has been shipped. The customer receives a shipped email with the tracking link.
+                  </span>
+                  {trackingLabel?.tracking_number && (
+                    <div className="pl-0 flex flex-col gap-y-1 text-slate-300">
+                      <span className="font-mono">
+                        {trackingCourier ? `${trackingCourier} · ` : ""}#{trackingLabel.tracking_number}
+                      </span>
+                      {trackingLabel.tracking_url && trackingLabel.tracking_url !== "#" && (
+                        <a
+                          href={trackingLabel.tracking_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-400 hover:text-emerald-300 font-semibold break-all"
+                        >
+                          Open courier tracking →
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           </Container>
+
+          <MarkShippedDialog
+            open={shipDialogOpen}
+            onOpenChange={setShipDialogOpen}
+            onConfirm={handleConfirmShip}
+            pending={actionPending}
+            orderDisplayId={order.display_id}
+          />
         </div>
 
         {/* Right Column (Summary totals & Customer) */}

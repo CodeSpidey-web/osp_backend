@@ -48,27 +48,30 @@ export function applySidebarRules(userEmail: string | null) {
     // 100% CSS-only layout ordering and item hiding logic.
     // Restored the clean padding-left tab space for all main sidebar navigation links.
     styleEl.innerHTML = `
-      /* Hide native developer link list-items and their container blocks completely */
-      li:has(a[href="/app/orders"]),
-      div:has(> a[href="/app/orders"]),
-      li:has(a[href="/app/promotions"]),
-      div:has(> a[href="/app/promotions"]),
-      li:has(a[href="/app/price-lists"]),
-      div:has(> a[href="/app/price-lists"]),
-      li:has(a[href="/app/inventory"]),
-      div:has(> a[href="/app/inventory"]),
-      li:has(a[href="/app/customer-groups"]),
-      div:has(> a[href="/app/customer-groups"]),
-      li:has(a[href="/app/settings"]),
-      div:has(> a[href="/app/settings"]),
-      li:has(a[href*="/reservations"]),
-      div:has(> a[href*="/reservations"]),
-      li:has(a[href*="/reservation"]),
-      div:has(> a[href*="/reservation"]),
-      li:has(a[href*="collections"]),
-      div:has(> a[href*="collections"]),
-      li:has(a[href*="options"]),
-      div:has(> a[href*="options"]) {
+      /* Hide native developer links and their direct sidebar wrappers completely */
+      aside a[href="/app/orders"],
+      aside a[href="/app/products"],
+      aside a[href="/app/products/"],
+      aside a[href="/app/promotions"],
+      aside a[href="/app/price-lists"],
+      aside a[href="/app/inventory"],
+      aside a[href="/app/customer-groups"],
+      aside a[href="/app/settings"],
+      aside a[href*="/reservations"],
+      aside a[href*="/reservation"],
+      aside a[href*="collections"],
+      aside a[href*="options"],
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/orders"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/products"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/promotions"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/price-lists"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/inventory"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/customer-groups"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/settings"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href*="/reservations"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href*="/reservation"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href*="collections"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href*="options"]) {
         display: none !important;
       }
 
@@ -86,14 +89,16 @@ export function applySidebarRules(userEmail: string | null) {
       }
 
       /* Hide the entire sub-menu container under Customers to remove the empty dropdown wrapper space */
-      ul:has(a[href*="customer-groups"]),
-      div:has(> a[href*="customer-groups"]),
-      ul:has(a[href="/app/customer-groups"]) {
+      :is(aside, nav, [role="navigation"], [role="dialog"]) ul:has(a[href*="customer-groups"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) div:has(> a[href*="customer-groups"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) ul:has(a[href="/app/customer-groups"]) {
         display: none !important;
       }
       
       /* Make sure custom client links are visible */
       a[href="/app/dashboard"],
+      a[href="/app/products-simple"],
+      a[href="/app/categories"],
       a[href="/app/inventory-management"],
       a[href="/app/order-management"],
       a[href="/app/product-reviews"],
@@ -142,59 +147,50 @@ export function applySidebarRules(userEmail: string | null) {
         order: 1 !important;
       }
 
-      /* Products and all its sub-links share order 2 */
-      li:has(a[href="/app/products"]),
-      div:has(> a[href="/app/products"]) {
+      /* Products-simple custom link order 2 */
+      li:has(a[href="/app/products-simple"]),
+      div:has(> a[href="/app/products-simple"]) {
         order: 2 !important;
       }
 
-      /* Maintain dropdown list order group to align with Products tab, and set flex column to enable sub-link ordering */
-      ul:has(a[href*="collections"]),
-      ul:has(a[href*="categories"]),
-      ul:has(a[href*="options"]) {
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 2px !important;
-        order: 2 !important;
+      /* Hide the native Products entry and its Collections/Options sub-menu wrappers (sidebar scoped, direct-child only) */
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/products"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href*="collections"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href*="options"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) ul:has(a[href*="collections"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) ul:has(a[href*="options"]) {
+        display: none !important;
       }
 
-      /* Reorder sub-links inside the Products dropdown: Products, Categories, Options, Collections */
-      ul:has(a[href*="collections"]) li:has(a[href="/app/products"]) {
-        order: 1 !important;
-      }
-      ul:has(a[href*="collections"]) li:has(a[href*="categories"]) {
-        order: 2 !important;
-      }
-      ul:has(a[href*="collections"]) li:has(a[href*="options"]) {
+      /* Elevate categories custom route to order 3 in the sidebar */
+      li:has(a[href="/app/categories"]),
+      div:has(> a[href="/app/categories"]) {
         order: 3 !important;
-      }
-      ul:has(a[href*="collections"]) li:has(a[href*="collections"]) {
-        order: 4 !important;
       }
 
       li:has(a[href="/app/order-management"]),
       div:has(> a[href="/app/order-management"]) {
-        order: 3 !important;
+        order: 4 !important;
       }
 
       li:has(a[href="/app/inventory-management"]),
       div:has(> a[href="/app/inventory-management"]) {
-        order: 4 !important;
+        order: 5 !important;
       }
 
       li:has(a[href="/app/customers"]),
       div:has(> a[href="/app/customers"]) {
-        order: 5 !important;
+        order: 6 !important;
       }
 
       li:has(a[href="/app/product-reviews"]),
       div:has(> a[href="/app/product-reviews"]) {
-        order: 6 !important;
+        order: 7 !important;
       }
 
       li:has(a[href="/app/website-settings"]),
       div:has(> a[href="/app/website-settings"]) {
-        order: 7 !important;
+        order: 8 !important;
       }
 
       /* On mobile and tablet screens, disable sticky columns on all scrollable tables globally.
@@ -211,12 +207,14 @@ export function applySidebarRules(userEmail: string | null) {
     // Clean menu items immediately
     cleanDropdownMenuItems()
     cleanSidebarCustomersItem()
+    cleanNativeProductsMenu()
 
     // Observe document.body to instantly hide popover items when the dropdown popup renders
     if (!menuObserver) {
       menuObserver = new MutationObserver(() => {
         cleanDropdownMenuItems()
         cleanSidebarCustomersItem()
+        cleanNativeProductsMenu()
       })
       menuObserver.observe(document.body, { childList: true, subtree: true })
     }
@@ -319,8 +317,38 @@ function cleanSidebarCustomersItem() {
         html.includes("arrow") ||
         isChevron
       ) {
-        (svg as HTMLElement).style.setProperty("display", "none", "important")
+        (svg as unknown as HTMLElement).style.setProperty("display", "none", "important")
       }
     })
   })
+}
+
+function cleanNativeProductsMenu() {
+  if (typeof document === "undefined") return
+  const nativeLinks = document.querySelectorAll(
+    'aside a[href*="collections"], nav a[href*="collections"], [role="navigation"] a[href*="collections"], aside a[href*="options"], nav a[href*="options"], [role="navigation"] a[href*="options"], aside a[href="/app/products"], nav a[href="/app/products"], [role="navigation"] a[href="/app/products"]'
+  )
+  nativeLinks.forEach((link) => {
+    (link as HTMLElement).style.setProperty("display", "none", "important")
+
+    // Collapse the hidden item's wrapper chain (direct link wrapper + nav item root)
+    // so no phantom empty line with its flex gap is left in the sidebar.
+    let el = link.parentElement
+    let hops = 0
+    while (el && el !== document.body && hops < 2) {
+      const tag = el.tagName
+      if (tag === "NAV" || tag === "ASIDE" || el.getAttribute?.("role") === "navigation" || el.getAttribute?.("role") === "dialog") break
+      if (tag === "DIV" || tag === "LI" || tag === "UL") {
+        el.style.setProperty("display", "none", "important")
+      }
+      el = el.parentElement
+      hops++
+    }
+  })
+}
+
+export function forceLeftSidebarDirection() {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dir = 'ltr'
+  }
 }

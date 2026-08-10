@@ -1,7 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Container, Heading, Text, Button, Input, Label } from "@medusajs/ui"
 import { useEffect, useState } from "react"
-import { useRoleGuard } from "../useRoleGuard"
+import { useRoleGuard } from "../../utils/useRoleGuard"
 
 const WebsiteSettingsPage = () => {
   const { authorized, loading: authLoading } = useRoleGuard()

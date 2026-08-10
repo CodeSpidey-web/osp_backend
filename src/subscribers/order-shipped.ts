@@ -124,7 +124,7 @@ export default async function orderShippedHandler({
     // STEP 4: Fetch tracking info from fulfillment labels
     // ---------------------------------------------------
     let trackingNumber = "Will be shared by courier partner"
-    let trackingLink: string | null = null
+    let courierName: string | null = null
 
     if (fulfillmentId) {
       try {
@@ -132,11 +132,16 @@ export default async function orderShippedHandler({
           entity: "fulfillment",
           fields: [
             "id",
+            "metadata",
             "labels.tracking_number",
-            "labels.tracking_url",
           ],
           filters: { id: fulfillmentId },
         })
+
+        const metadataCourier = fulfillment?.metadata?.courier_name
+        if (typeof metadataCourier === "string") {
+          courierName = metadataCourier
+        }
 
         const labelNums = fulfillment?.labels
           ?.map((l: any) => l.tracking_number)
@@ -144,11 +149,6 @@ export default async function orderShippedHandler({
 
         if (labelNums && labelNums.length > 0) {
           trackingNumber = labelNums.join(", ")
-        }
-
-        const firstUrl = fulfillment?.labels?.[0]?.tracking_url
-        if (firstUrl && firstUrl !== "#" && firstUrl.trim().length > 0) {
-          trackingLink = firstUrl
         }
       } catch (trackErr) {
         console.warn(`[Order Shipped Subscriber] ⚠️ Could not fetch tracking labels:`, trackErr)
@@ -178,7 +178,7 @@ export default async function orderShippedHandler({
     const itemsListHtml = (order.items || [])
       .map((item: any) => {
         const qty = item.detail?.quantity ?? item.quantity ?? 1
-        const lineTotal = ((item.unit_price ?? 0) * qty) / 100
+        const lineTotal = ((item.unit_price ?? 0) * qty)
         return `
           <tr style="border-bottom: 1px solid #f1f3f5;">
             <td style="padding: 10px 0; color: #2d3748;">${item.title}</td>
@@ -215,16 +215,16 @@ export default async function orderShippedHandler({
             <strong style="color: #0b2545; display: inline-block; min-width: 120px;">Shipped On:</strong>
             ${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
+          ${courierName ? `
+          <p style="margin: 6px 0; color: #4a5568; font-size: 13px; line-height: 1.5;">
+            <strong style="color: #0b2545; display: inline-block; min-width: 120px;">Courier:</strong>
+            ${courierName}
+          </p>
+          ` : ""}
           <p style="margin: 6px 0; color: #4a5568; font-size: 13px; line-height: 1.5;">
             <strong style="color: #0b2545; display: inline-block; min-width: 120px;">Tracking No:</strong>
             ${trackingNumber}
           </p>
-          ${trackingLink ? `
-          <p style="margin: 6px 0; color: #4a5568; font-size: 13px; line-height: 1.5;">
-            <strong style="color: #0b2545; display: inline-block; min-width: 120px;">Track Live:</strong>
-            <a href="${trackingLink}" target="_blank" style="color: #136c39; font-weight: 700; text-decoration: underline;">Open Tracking →</a>
-          </p>
-          ` : ""}
           <p style="margin: 6px 0; color: #4a5568; font-size: 13px; line-height: 1.5;">
             <strong style="color: #0b2545; display: inline-block; min-width: 120px;">Delivery To:</strong>
             ${shippingAddressText}

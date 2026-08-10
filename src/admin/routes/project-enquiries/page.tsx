@@ -1,7 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Container, Heading, Text, Button, Input } from "@medusajs/ui"
 import { useEffect, useState } from "react"
-import { useRoleGuard } from "../useRoleGuard"
+import { useRoleGuard } from "../../utils/useRoleGuard"
 
 interface Enquiry {
   id: string

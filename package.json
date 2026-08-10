@@ -21,11 +21,12 @@
     "import-products": "medusa exec src/migration-scripts/import-techtonics-products.ts",
     "setup-sidebar": "medusa exec src/migration-scripts/setup-sidebar-layout.ts",
     "clear-data": "medusa exec src/migration-scripts/clear-all-data.ts",
+    "clear-customers": "medusa exec src/migration-scripts/clear-customer-data.ts",
     "import-categories": "medusa exec src/migration-scripts/import-scraped-categories.ts",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
-    "postinstall": "node patch_medusa_razorpay.js"
+    "postinstall": "node patch_medusa_razorpay.js && node patch_medusa_payment_module.js"
   },
   "dependencies": {
     "@alchemilla/medusa-razorpay": "^0.1.0",

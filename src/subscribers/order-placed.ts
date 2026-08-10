@@ -88,8 +88,8 @@ export default async function orderPlacedHandler({
         <tr style="border-bottom: 1px solid #f1f3f5;">
           <td style="padding: 10px 0; color: #2d3748;">${item.title}</td>
           <td style="padding: 10px 0; text-align: center; color: #718096;">${item.detail?.quantity ?? item.quantity}</td>
-          <td style="padding: 10px 0; text-align: right; color: #2d3748;">${order.currency_code.toUpperCase()} ${((item.unit_price ?? 0) / 100).toFixed(2)}</td>
-          <td style="padding: 10px 0; text-align: right; color: #2d3748;">${order.currency_code.toUpperCase()} ${(((item.unit_price ?? 0) * (item.detail?.quantity ?? item.quantity ?? 1)) / 100).toFixed(2)}</td>
+          <td style="padding: 10px 0; text-align: right; color: #2d3748;">${order.currency_code.toUpperCase()} ${(item.unit_price ?? 0).toFixed(2)}</td>
+          <td style="padding: 10px 0; text-align: right; color: #2d3748;">${order.currency_code.toUpperCase()} ${((item.unit_price ?? 0) * (item.detail?.quantity ?? item.quantity ?? 1)).toFixed(2)}</td>
         </tr>
       `).join("") || ""
 
@@ -126,19 +126,19 @@ export default async function orderPlacedHandler({
           <tbody>
             <tr>
               <td style="padding: 6px 0; color: #4a5568; font-size: 14px;">Subtotal</td>
-              <td style="padding: 6px 0; text-align: right; color: #2d3748; font-size: 14px; font-weight: 600;">${order.currency_code.toUpperCase()} ${(subtotal / 100).toFixed(2)}</td>
+              <td style="padding: 6px 0; text-align: right; color: #2d3748; font-size: 14px; font-weight: 600;">${order.currency_code.toUpperCase()} ${subtotal.toFixed(2)}</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; color: #4a5568; font-size: 14px;">Shipping</td>
-              <td style="padding: 6px 0; text-align: right; color: #2d3748; font-size: 14px; font-weight: 600;">${order.currency_code.toUpperCase()} ${(shipping / 100).toFixed(2)}</td>
+              <td style="padding: 6px 0; text-align: right; color: #2d3748; font-size: 14px; font-weight: 600;">${order.currency_code.toUpperCase()} ${shipping.toFixed(2)}</td>
             </tr>
             <tr>
               <td style="padding: 6px 0; color: #4a5568; font-size: 14px;">GST (included)</td>
-              <td style="padding: 6px 0; text-align: right; color: #2d3748; font-size: 14px; font-weight: 600;">${order.currency_code.toUpperCase()} ${(gstIncluded / 100).toFixed(2)}</td>
+              <td style="padding: 6px 0; text-align: right; color: #2d3748; font-size: 14px; font-weight: 600;">${order.currency_code.toUpperCase()} ${gstIncluded.toFixed(2)}</td>
             </tr>
             <tr style="border-top: 2px solid #edf2f7;">
               <td style="padding: 12px 0 0 0; font-weight: 700; color: #2d3748;">Grand Total</td>
-              <td style="padding: 12px 0 0 0; text-align: right; font-weight: 700; color: #136c39; font-size: 18px;">${order.currency_code.toUpperCase()} ${(grandTotal / 100).toFixed(2)}</td>
+              <td style="padding: 12px 0 0 0; text-align: right; font-weight: 700; color: #136c39; font-size: 18px;">${order.currency_code.toUpperCase()} ${grandTotal.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>

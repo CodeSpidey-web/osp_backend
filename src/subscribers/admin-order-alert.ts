@@ -66,7 +66,7 @@ export default async function adminOrderAlertHandler({
           <tr>
             <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7;">Total Amount:</td>
             <td style="padding: 10px; border-bottom: 1px solid #edf2f7; color: #136c39; font-weight: bold;">
-              ${order.currency_code.toUpperCase()} ${(grandTotal / 100).toFixed(2)}
+              ${order.currency_code.toUpperCase()} ${Number(grandTotal).toFixed(2)}
             </td>
           </tr>
           <tr>

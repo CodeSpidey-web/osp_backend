@@ -70,7 +70,7 @@ export async function GET(
       WHERE so.name = 'Standard Shipping' AND LOWER(p.currency_code) = 'inr'
       LIMIT 1
     `)
-    const actualShipping = shipPriceRes.rows[0] ? Number(shipPriceRes.rows[0].amount) / 100 : null
+    const actualShipping = shipPriceRes.rows[0] ? Number(shipPriceRes.rows[0].amount) : null
 
     const deliveryEstimateRaw = metadata.delivery_estimate
     const deliveryEstimate = (typeof deliveryEstimateRaw === "string" && deliveryEstimateRaw.trim() !== "")

@@ -1,7 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Container, Heading, Table, Badge, Text, Button } from "@medusajs/ui"
 import { useEffect, useState } from "react"
-import { useRoleGuard } from "../useRoleGuard"
+import { useRoleGuard } from "../../utils/useRoleGuard"
 
 type DashboardStats = {
   totalProducts: number
@@ -24,7 +24,7 @@ type DashboardOrder = {
 const statusColors: Record<string, "grey" | "orange" | "green"> = {
   Pending: "grey",
   Processing: "orange",
-  Delivered: "green",
+  Shipped: "green",
 }
 
 const DashboardPage = () => {
@@ -177,7 +177,7 @@ const DashboardPage = () => {
                     {new Intl.NumberFormat("en-IN", {
                       style: "currency",
                       currency: order.currency_code?.toUpperCase() || "INR",
-                    }).format((order.total || 0) / 100)}
+                    }).format(order.total || 0)}
                   </Table.Cell>
                   <Table.Cell>
                     {new Date(order.created_at).toLocaleDateString("en-IN")}

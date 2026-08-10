@@ -1,6 +1,6 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { useEffect } from "react"
-import { applySidebarRules } from "../routes/useRoleGuard"
+import { applySidebarRules, forceLeftSidebarDirection } from "../utils/useRoleGuard"
 
 const GlobalRoleManagerWidget = () => {
   useEffect(() => {
@@ -10,6 +10,7 @@ const GlobalRoleManagerWidget = () => {
         window.location.replace('/app/dashboard');
       }
     }
+    forceLeftSidebarDirection();
   }, []);
 
   useEffect(() => {
@@ -43,15 +44,97 @@ const GlobalRoleManagerWidget = () => {
       document.head.appendChild(styleEl);
     }
 
+    /**
+     * Fields & sections we want on the product create/edit page:
+     *  - Product name (title)
+     *  - Category (the category select)
+     *  - Media (multiple images)
+     *  - Price + SKU (kept via the Variants/Pricing grid)
+     *  - Description
+     *
+     * Everything else is considered unwanted and hidden.
+     *
+     * IMPORTANT: The Variants/Pricing area (the grid/data-table where the
+     * "Price+" button, price cells and SKU columns live) must NEVER be hidden.
+     * `isProtectedRegion` guards every matched element so the hide rules can
+     * only ever touch plain form fields, never the variants/pricing grids,
+     * tables, price cells or SKU columns.
+     */
+    const isProductPage = () => {
+      if (typeof window === 'undefined') return false;
+      const path = window.location.pathname;
+      return path.startsWith('/app/products') || path === '/app/products';
+    }
+
+    // ------------------------- KEEP list / protection -------------------------
+    // Roles that wrap the Variants/Pricing data grids, tables and their cells.
+    const PROTECTED_ROLES = new Set([
+      'application',
+      'grid',
+      'gridcell',
+      'table',
+      'row',
+      'rowgroup',
+      'rowheader',
+      'columnheader',
+      'treegrid',
+    ]);
+    // Raw table elements (used by the detail page Variants table).
+    const PROTECTED_TAGS = new Set(['TABLE', 'THEAD', 'TBODY', 'TFOOT']);
+    // Anchor ids of the keep-visible regions on the product forms.
+    const isKeepId = (id: string) =>
+      /^(variant|pricing|price|media|category|sku)/.test(
+        (id || '').toLowerCase()
+      );
+    // Section headings whose contents are "keep" territory.
+    const KEEP_HEADINGS = [
+      'variants',
+      'pricing',
+      'price',
+      'media',
+      'categories',
+    ];
+
+    // Returns true when el (or any of its ancestors) lives inside a
+    // Variants/Pricing, price, SKU, media or category region. Elements that do
+    // are never hidden, no matter which hide rule would otherwise match.
+    const isProtectedRegion = (el: any) => {
+      let node: any = el;
+      let depth = 0;
+      while (node && node !== document.body && depth < 10) {
+        const role = node.getAttribute ? node.getAttribute('role') : null;
+        if (role && PROTECTED_ROLES.has(role)) return true;
+
+        if (node.id && isKeepId(node.id)) return true;
+
+        if (node.tagName && PROTECTED_TAGS.has(node.tagName)) return true;
+
+        if (
+          (node.tagName === 'H2' || role === 'heading') &&
+          node.textContent
+        ) {
+          const headingText = (node.textContent || '')
+            .trim()
+            .toLowerCase();
+          for (const k of KEEP_HEADINGS) {
+            if (headingText.indexOf(k) === 0) return true;
+          }
+        }
+
+        node = node.parentElement;
+        depth++;
+      }
+      return false;
+    };
+
     const simplifyForm = () => {
-      // Safely check if we are on the product creation route or looking at a dialog
       const containers: any[] = [];
-      
-      if (typeof window !== 'undefined' && window.location.pathname.includes('/products/create')) {
-        const mainEl = document.querySelector('main') || document.querySelector('form');
+
+      if (isProductPage()) {
+        const mainEl = document.querySelector('main') || document.body;
         if (mainEl) containers.push(mainEl);
       }
-      
+
       const activeDialogs = document.querySelectorAll('[role="dialog"], [role="alertdialog"]');
       activeDialogs.forEach(dialog => {
         const text = dialog.textContent || '';
@@ -61,112 +144,29 @@ const GlobalRoleManagerWidget = () => {
       });
 
       containers.forEach(containerEl => {
-        const elements = containerEl.querySelectorAll('h1, h2, h3, h4, h5, h6, legend, span, p, label, button, a');
+        const elements = containerEl.querySelectorAll('h1, h2, h3, h4, legend, span, p, button, a');
         elements.forEach((el: any) => {
+          // Never hide the Variants/Pricing/Price/SKU/Media/Category areas.
+          if (isProtectedRegion(el)) return;
+
           const elText = (el.textContent || '').trim().toLowerCase();
           if (!elText) return;
 
-          // 1. Hide Options section & Variants toggle in details
-          if (
-            elText === 'options' || 
-            elText === 'product options' || 
-            elText === 'variants' || 
-            elText.includes('has variants') || 
-            elText.includes('multiple variants') ||
-            elText.includes('when unchecked, we will create')
-          ) {
-            // If stepper item, hide it
-            const stepperItem = el.closest('button') || el.closest('a') || el.closest('li') || el.closest('[role="tab"]');
-            if (stepperItem && containerEl.contains(stepperItem) && (stepperItem.classList.contains('stepper-item') || stepperItem.textContent?.toLowerCase().includes('variants') || stepperItem.textContent?.toLowerCase().includes('pricing'))) {
-              stepperItem.setAttribute('data-hide-product-field', 'true');
-            }
-            
-            // Hide the variants card block by searching for the description container
-            let parent = el.parentElement;
-            let depth = 0;
-            while (parent && parent !== containerEl && depth < 3) {
-              const pText = parent.textContent || '';
-              if (pText.includes('when unchecked, we will create') || pText.includes('is a product with variants')) {
-                parent.setAttribute('data-hide-product-field', 'true');
-                break;
-              }
-              parent = parent.parentElement;
-              depth++;
-            }
-          }
-          
-          // 2. Hide "Variants" and "Pricing" tabs in the sidebar stepper
-          if (elText === 'variants' || elText === 'pricing') {
-            const stepperItem = el.closest('button') || el.closest('a') || el.closest('li') || el.closest('[role="tab"]');
-            if (stepperItem && containerEl.contains(stepperItem)) {
-              stepperItem.setAttribute('data-hide-product-field', 'true');
-            }
-          }
-
-          // 3. Hide Type (Optional) field container (hides both label and input box)
-          if (elText.includes('type') && (elText.includes('optional') || elText === 'type')) {
-            let parent = el.parentElement;
-            let found = false;
-            let depth = 0;
-            while (parent && parent !== containerEl && depth < 3) {
-              if (parent.querySelector('input') || parent.querySelector('select') || parent.querySelector('button') || parent.querySelector('[role="combobox"]')) {
-                parent.setAttribute('data-hide-product-field', 'true');
-                found = true;
-                break;
-              }
-              parent = parent.parentElement;
-              depth++;
-            }
-            if (!found && el.parentElement) {
-              el.parentElement.setAttribute('data-hide-product-field', 'true');
-            }
-          }
-
-          // 4. Hide Collection (Optional) field container (hides both label and select box)
-          if (elText.includes('collection') && (elText.includes('optional') || elText === 'collection')) {
-            let parent = el.parentElement;
-            let found = false;
-            let depth = 0;
-            while (parent && parent !== containerEl && depth < 3) {
-              if (parent.querySelector('input') || parent.querySelector('select') || parent.querySelector('button') || parent.querySelector('[role="combobox"]')) {
-                parent.setAttribute('data-hide-product-field', 'true');
-                found = true;
-                break;
-              }
-              parent = parent.parentElement;
-              depth++;
-            }
-            if (!found && el.parentElement) {
-              el.parentElement.setAttribute('data-hide-product-field', 'true');
-            }
-          }
-
-          // 5. Hide Discountable switch row container (hides both label and toggle switch)
-          if (elText.includes('discountable') || elText.includes('discounts will not be applied')) {
-            let parent = el.parentElement;
-            let found = false;
-            let depth = 0;
-            while (parent && parent !== containerEl && depth < 3) {
-              if (parent.querySelector('button[role="switch"]') || parent.querySelector('input[type="checkbox"]') || parent.classList.contains('flex-row') || parent.classList.contains('items-center')) {
-                parent.setAttribute('data-hide-product-field', 'true');
-                found = true;
-                break;
-              }
-              parent = parent.parentElement;
-              depth++;
-            }
-            if (!found && el.parentElement) {
-              el.parentElement.setAttribute('data-hide-product-field', 'true');
-            }
-          }
-
-          // Helper to hide container of a label
+          // Helper to hide the container of a label/field
           const hideFieldContainer = (targetEl: any) => {
             let parent = targetEl.parentElement;
             let found = false;
             let depth = 0;
-            while (parent && parent !== containerEl && depth < 4) {
-              if (parent.querySelector('input') || parent.querySelector('select') || parent.querySelector('button') || parent.querySelector('[role="combobox"]') || parent.classList.contains('flex-col') || parent.classList.contains('grid')) {
+            while (parent && parent !== containerEl && depth < 5) {
+              if (
+                parent.querySelector('input') ||
+                parent.querySelector('textarea') ||
+                parent.querySelector('select') ||
+                parent.querySelector('button') ||
+                parent.querySelector('[role="combobox"]') ||
+                parent.classList.contains('flex-col') ||
+                parent.classList.contains('grid')
+              ) {
                 parent.setAttribute('data-hide-product-field', 'true');
                 found = true;
                 break;
@@ -179,57 +179,120 @@ const GlobalRoleManagerWidget = () => {
             }
           };
 
-          // 6. Hide Subtitle
+          // Helper to hide a section card (used on the edit/detail page side panels)
+          const hideSectionCard = (targetEl: any) => {
+            let parent = targetEl.parentElement;
+            while (parent && parent !== containerEl) {
+              const cls = parent.className || "";
+              const isSection =
+                cls.includes('divide-y') ||
+                cls.includes('rounded-lg') ||
+                cls.includes('rounded-xl') ||
+                cls.includes('p-0') ||
+                parent.tagName === 'SECTION';
+              if (isSection) {
+                parent.setAttribute('data-hide-product-field', 'true');
+                return;
+              }
+              parent = parent.parentElement;
+            }
+            hideFieldContainer(targetEl);
+          };
+
+          // 1. Subtitle
           if (elText === 'subtitle' || (elText.includes('subtitle') && elText.includes('optional'))) {
             hideFieldContainer(el);
           }
 
-          // 7. Hide Handle
+          // 2. Handle
           if (elText === 'handle' || (elText.includes('handle') && elText.includes('optional'))) {
             hideFieldContainer(el);
           }
 
-          // 8. Hide Customs & Shipping (HS Code, Country of Origin, MID Code)
+          // 3. Material
+          if (elText === 'material' || (elText.includes('material') && elText.includes('optional'))) {
+            hideFieldContainer(el);
+          }
+
+          // 4. Discountable
+          if (elText.includes('discountable') || elText.includes('discounts will not be applied')) {
+            hideFieldContainer(el);
+          }
+
+          // 5. Type
+          if (elText.includes('type') && (elText.includes('optional') || elText === 'type')) {
+            hideFieldContainer(el);
+          }
+
+          // 6. Collection
+          if (elText.includes('collection') && (elText.includes('optional') || elText === 'collection')) {
+            hideFieldContainer(el);
+          }
+
+          // 7. Tags
+          if (elText === 'tags' || (elText.includes('tags') && elText.includes('optional'))) {
+            hideFieldContainer(el);
+          }
+
+          // 8. Price lists section
+          if (elText === 'price list' || elText === 'price lists' || (elText.includes('price list') && elText.includes('.'))) {
+            hideFieldContainer(el);
+          }
+
+          // 9. Customs & Shipping (HS Code, MID Code, Country of Origin)
           if (
-            elText === 'hs code' || 
-            elText === 'mid code' || 
-            elText.includes('country of origin') || 
+            elText === 'hs code' ||
+            elText === 'mid code' ||
+            elText.includes('country of origin') ||
             elText.includes('harmonized system code')
           ) {
             hideFieldContainer(el);
           }
 
-          // 9. Hide Dimensions (Width, Height, Length, Weight)
+          // 9b. Customs/Dimensions sections (card-level headings)
+          if (elText === 'customs' || elText === 'dimensions') {
+            hideSectionCard(el);
+          }
+
+          // 10. Attribute field-level labels (dimensions used as individual fields)
           if (
-            elText === 'width' || 
-            elText === 'height' || 
-            elText === 'length' || 
-            elText === 'weight'
+            elText === 'width' ||
+            elText === 'height' ||
+            elText === 'length' ||
+            elText === 'weight' ||
+            elText === 'mid code'
           ) {
             hideFieldContainer(el);
           }
 
-          // 10. Hide Sales Channels and Metadata sections/fields
-          if (
-            elText === 'sales channels' || 
-            elText === 'sales_channels' || 
-            elText === 'metadata'
-          ) {
-            hideFieldContainer(el);
+          // 10b. Attributes section heading (right column card)
+          if (elText === 'attributes') {
+            hideSectionCard(el);
           }
 
-          // 11. Hide entire card blocks/sections for Customs, Dimensions, Sales Channels, and Metadata on product page
+          // 11. Sales Channels / Shipping Profile - hide the section card entirely
           if (
-            elText === 'customs' || 
-            elText === 'sales channels' || 
+            elText === 'sales channels' ||
+            elText === 'sales_channel' ||
+            elText.includes('available in sales channels') ||
+            elText.includes('sales channels') ||
+            elText === 'shipping profile'
+          ) {
+            hideSectionCard(el);
+          }
+
+          // 12. Metadata and JSON debug panels
+          if (
             elText === 'metadata' ||
-            elText === 'dimensions'
+            elText === 'metadata (optional)' ||
+            elText === 'json view' ||
+            elText.includes('json') ||
+            elText === 'required permissions'
           ) {
-            const cardBlock = el.closest('div.border, div.bg-card, section, [role="tabpanel"]');
-            if (cardBlock && containerEl.contains(cardBlock)) {
-              cardBlock.setAttribute('data-hide-product-field', 'true');
-            }
+            hideSectionCard(el);
           }
+
+          // All other checks only apply to disabled content
         });
       });
     };
@@ -275,6 +338,7 @@ const GlobalRoleManagerWidget = () => {
 export const config = defineWidgetConfig({
   zone: [
     "product.list.after",
+    "product.details.before",
     "order.list.after",
     "customer.list.after"
   ],

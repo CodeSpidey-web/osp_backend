@@ -26,6 +26,9 @@ export async function GET(
       "payment_collections.captured_amount",
       "fulfillments.shipped_at",
       "fulfillments.delivered_at",
+      "fulfillments.metadata",
+      "fulfillments.labels.tracking_number",
+      "fulfillments.labels.tracking_url",
     ],
   })
 
@@ -47,18 +50,42 @@ export async function GET(
       resolvedFulfillmentStatus = isShipped ? "shipped" : "fulfilled";
     }
 
+    const tracking = extractTracking(o.fulfillments);
+
     return {
       ...o,
       total: totalVal,
       custom_status: mapStatus(resolvedFulfillmentStatus, resolvedPaymentStatus),
+      tracking,
     };
   })
 
   res.json({ orders: mapped })
 }
 
+function extractTracking(fulfillments: any): {
+  courier_name: string | null;
+  tracking_number: string | null;
+  tracking_url: string | null;
+} {
+  for (const f of fulfillments || []) {
+    const courierName = f?.metadata?.courier_name || null;
+    for (const label of f?.labels || []) {
+      const trackingNumber = label?.tracking_number;
+      if (trackingNumber) {
+        return {
+          courier_name: courierName,
+          tracking_number: trackingNumber,
+          tracking_url: label?.tracking_url && label?.tracking_url !== "#" ? label.tracking_url : null,
+        };
+      }
+    }
+  }
+  return { courier_name: null, tracking_number: null, tracking_url: null };
+}
+
 function mapStatus(fulfillment: string, payment: string): string {
-  if (fulfillment === "fulfilled" || fulfillment === "shipped") return "Delivered"
+  if (fulfillment === "fulfilled" || fulfillment === "shipped") return "Shipped"
   if (fulfillment === "partially_fulfilled" || payment === "captured") return "Processing"
   return "Pending"
 }

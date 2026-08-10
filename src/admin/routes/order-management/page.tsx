@@ -1,7 +1,8 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Container, Heading, Table, Badge, Text, Button } from "@medusajs/ui"
 import { useEffect, useState } from "react"
-import { useRoleGuard } from "../useRoleGuard"
+import { useRoleGuard } from "../../utils/useRoleGuard"
+import MarkShippedDialog from "../../components/MarkShippedDialog"
 
 type Order = {
   id: string
@@ -13,12 +14,13 @@ type Order = {
   custom_status: string
   shipping_address?: { first_name: string; last_name: string; city: string }
   items?: { title: string; quantity: number }[]
+  tracking?: { courier_name: string | null; tracking_number: string | null; tracking_url: string | null }
 }
 
 const statusColors: Record<string, "grey" | "orange" | "green"> = {
   Pending: "grey",
   Processing: "orange",
-  Delivered: "green",
+  Shipped: "green",
 }
 
 const OrdersPage = () => {
@@ -26,6 +28,8 @@ const OrdersPage = () => {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [actionPending, setActionPending] = useState(false)
+  const [shipTarget, setShipTarget] = useState<Order | null>(null)
+  const [shipDialogOpen, setShipDialogOpen] = useState(false)
 
   const loadOrders = () => {
     setLoading(true)
@@ -49,7 +53,7 @@ const OrdersPage = () => {
     const confirmMessage = 
       status === "Processing" 
         ? "Capture payment for this order and transition status to Processing?" 
-        : "Fulfill all items, register shipment and mark this order as Delivered?"
+        : "Fulfill all items, enter courier & tracking details and mark this order as Shipped?"
         
     if (!confirm(confirmMessage)) return
 
@@ -66,6 +70,37 @@ const OrdersPage = () => {
         throw new Error("Failed to update status on server.")
       }
 
+      loadOrders()
+    } catch (err: any) {
+      alert(err.message || "An error occurred updating order status")
+    } finally {
+      setActionPending(false)
+    }
+  }
+
+  const openShipDialog = (order: Order) => {
+    setShipTarget(order)
+    setShipDialogOpen(true)
+  }
+
+  const handleConfirmShip = async (courierName: string, trackingNumber: string) => {
+    if (!shipTarget) return
+
+    setActionPending(true)
+    try {
+      const res = await fetch(`/admin/client-dashboard/orders/${shipTarget.id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Delivered", courierName, trackingNumber }),
+        credentials: "include",
+      })
+
+      if (!res.ok) {
+        throw new Error("Failed to update status on server.")
+      }
+
+      setShipDialogOpen(false)
+      setShipTarget(null)
       loadOrders()
     } catch (err: any) {
       alert(err.message || "An error occurred updating order status")
@@ -111,6 +146,7 @@ const OrdersPage = () => {
               <Table.HeaderCell>Items</Table.HeaderCell>
               <Table.HeaderCell>Total</Table.HeaderCell>
               <Table.HeaderCell>Date</Table.HeaderCell>
+              <Table.HeaderCell>Tracking</Table.HeaderCell>
               <Table.HeaderCell>Status</Table.HeaderCell>
               <Table.HeaderCell className="text-right">Actions</Table.HeaderCell>
             </Table.Row>
@@ -132,10 +168,31 @@ const OrdersPage = () => {
                   {new Intl.NumberFormat("en-IN", {
                     style: "currency",
                     currency: order.currency_code?.toUpperCase() || "INR",
-                  }).format((order.total || 0) / 100)}
+                  }).format(order.total || 0)}
                 </Table.Cell>
                 <Table.Cell>
                   {new Date(order.created_at).toLocaleDateString("en-IN")}
+                </Table.Cell>
+                <Table.Cell>
+                  {order.tracking?.tracking_number ? (
+                    <span className="flex flex-col gap-y-0.5">
+                      <span className="text-xs font-mono text-slate-200">
+                        {order.tracking.courier_name ? `${order.tracking.courier_name} · ` : ""}{order.tracking.tracking_number}
+                      </span>
+                      {order.tracking.tracking_url && (
+                        <a
+                          href={order.tracking.tracking_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] font-semibold text-emerald-400 hover:text-emerald-300 break-all"
+                        >
+                          Open Tracking →
+                        </a>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-600">—</span>
+                  )}
                 </Table.Cell>
                 <Table.Cell>
                   <Badge color={statusColors[order.custom_status] || "grey"}>
@@ -161,7 +218,7 @@ const OrdersPage = () => {
                       variant="primary" 
                       size="small" 
                       disabled={actionPending}
-                      onClick={() => handleUpdateStatus(order.id, "Delivered")}
+                      onClick={() => openShipDialog(order)}
                     >
                       Mark Shipped
                     </Button>
@@ -171,7 +228,7 @@ const OrdersPage = () => {
             ))}
             {orders.length === 0 && (
               <Table.Row>
-                <Table.Cell {...({ colSpan: 7 } as any)} className="text-center italic py-4 text-slate-500">
+                <Table.Cell {...({ colSpan: 8 } as any)} className="text-center italic py-4 text-slate-500">
                   No orders found.
                 </Table.Cell>
               </Table.Row>
@@ -179,6 +236,14 @@ const OrdersPage = () => {
           </Table.Body>
         </Table>
       </div>
+
+      <MarkShippedDialog
+        open={shipDialogOpen}
+        onOpenChange={setShipDialogOpen}
+        onConfirm={handleConfirmShip}
+        pending={actionPending}
+        orderDisplayId={shipTarget?.display_id}
+      />
     </Container>
   )
 }

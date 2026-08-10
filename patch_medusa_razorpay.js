@@ -120,6 +120,59 @@ function patch() {
     console.warn("[Razorpay Patch] Warning: getToPay function block not found!");
   }
 
+  // Patch 6: NEVER return a blank (empty-string) external id from createAccountHolder.
+  // A blank id makes Medusa's payment module persist `external_id = ""` into the
+  // account_holder table. The unique index (provider_id, external_id) then turns the
+  // SECOND attempt into "Account holder ... already exists." (PostgreSQL 23505).
+  // When we cannot produce a real Razorpay customer id, return undefined so Medusa
+  // skips creating the account holder entirely (isPresent() is false).
+  const noCustomerSearch = `        if (!customer) {
+            return { id: "", data: {} };
+        }`;
+  const noCustomerReplacement = `        if (!customer) {
+            return;
+        }`;
+  if (code.includes(noCustomerSearch)) {
+    code = code.split(noCustomerSearch).join(noCustomerReplacement);
+    console.log("[Razorpay Patch] Patched createAccountHolder (no-customer -> skip).");
+  } else {
+    console.warn("[Razorpay Patch] Warning: no-customer return block not found!");
+  }
+
+  // Patch 7: Guard against an empty customer id, and make the metadata write
+  // best-effort so a failing metadata save never discards a valid Razorpay customer.
+  const metaSearch = `            await this.updateRazorpayMetadataInCustomer(customer, "razorpay_id", razorpayCustomer.id);
+            return { id: razorpayCustomer.id, data: { razorpayCustomer } };`;
+  const metaReplacement = `            if (!razorpayCustomer?.id) {
+                return;
+            }
+            // Best-effort: a metadata-save failure must not discard a valid account holder.
+            try {
+                await this.updateRazorpayMetadataInCustomer(customer, "razorpay_id", razorpayCustomer.id);
+            }
+            catch (metaError) {
+                this.logger_?.error(\`Failed to save razorpay_id metadata for customer \${customer.id}: \${metaError}\`);
+            }
+            return { id: razorpayCustomer.id, data: { razorpayCustomer } };`;
+  if (code.includes(metaSearch)) {
+    code = code.split(metaSearch).join(metaReplacement);
+    console.log("[Razorpay Patch] Patched createAccountHolder (non-fatal metadata write + id guard).");
+  } else {
+    console.warn("[Razorpay Patch] Warning: metadata-write block not found!");
+  }
+
+  // Patch 8: On failure, skip (undefined) instead of returning a blank id.
+  const catchFailSearch = `            this.logger_?.error(\`Failed to create Razorpay customer: \${error}\`);
+            return { id: "", data: {} };`;
+  const catchFailReplacement = `            this.logger_?.error(\`Failed to create Razorpay customer: \${error}\`);
+            return;`;
+  if (code.includes(catchFailSearch)) {
+    code = code.split(catchFailSearch).join(catchFailReplacement);
+    console.log("[Razorpay Patch] Patched createAccountHolder (catch -> skip).");
+  } else {
+    console.warn("[Razorpay Patch] Warning: createAccountHolder catch block not found!");
+  }
+
   // Patch 5: Convert amount to Paise for INR refunds
   const refundSearch = `    async refundPayment(input) {
         const razorpayOrder = input.data

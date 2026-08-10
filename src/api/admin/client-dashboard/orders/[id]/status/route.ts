@@ -1,13 +1,18 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { capturePaymentWorkflow, createOrderFulfillmentWorkflow, createShipmentWorkflow } from "@medusajs/medusa/core-flows";
 import { sendMail } from "../../../../../../utils/mail";
+import { escapeHtml, getCourierOption } from "../../../../../../utils/courierTracking";
 
 export async function POST(
   req: MedusaRequest,
   res: MedusaResponse
 ) {
   const { id } = req.params;
-  const { status } = req.body as { status: "Processing" | "Delivered" };
+  const { status, courierName, trackingNumber } = req.body as {
+    status: "Processing" | "Delivered";
+    courierName?: string;
+    trackingNumber?: string;
+  };
 
   const query = req.scope.resolve("query");
 
@@ -58,6 +63,18 @@ export async function POST(
     }
 
     if (status === "Delivered") {
+      // Capture courier + tracking number (AWB) provided by the admin. The AWB is
+      // issued by the courier at booking time and simply recorded here — no shipment
+      // API integration is used and no tracking link is attached. The shipped email
+      // confirms the dispatch and includes the courier name + AWB for reference.
+      const courierNameValue = (courierName || "").trim();
+      const trackingNumberValue = (trackingNumber || "").trim();
+      const courierDisplayName = getCourierOption(courierNameValue)?.name || courierNameValue;
+
+      const labels = trackingNumberValue
+        ? [{ tracking_number: trackingNumberValue, tracking_url: "#", label_url: "" }]
+        : [];
+
       // 1. Create fulfillment
       const items = order.items?.map((item: any) => ({
         id: item.id,
@@ -68,21 +85,22 @@ export async function POST(
         return res.status(400).json({ message: "No items in this order to fulfill." });
       }
 
-      // Create fulfillment workflow
+      // Create fulfillment workflow (stores courier name in fulfillment metadata)
       const fulfillmentResult = await createOrderFulfillmentWorkflow(req.scope).run({
         input: {
           order_id: id,
           items,
+          metadata: courierDisplayName ? { courier_name: courierDisplayName } : undefined,
         },
       });
 
       const fulfillment = fulfillmentResult.result;
 
-      // 2. Create shipment to mark as delivered/completed
+      // 2. Create shipment to mark as shipped/completed
       await createShipmentWorkflow(req.scope).run({
         input: {
           id: fulfillment.id,
-          labels: [],
+          labels,
         },
       });
 
@@ -124,7 +142,7 @@ export async function POST(
               <tr style="border-bottom: 1px solid #f1f3f5;">
                 <td style="padding: 10px 0; color: #2d3748;">${item.title}</td>
                 <td style="padding: 10px 0; text-align: center; color: #718096;">${item.detail?.quantity ?? item.quantity ?? 1}</td>
-                <td style="padding: 10px 0; text-align: right; color: #2d3748;">${currency} ${(((item.unit_price ?? 0) * (item.detail?.quantity ?? item.quantity ?? 1)) / 100).toFixed(2)}</td>
+                <td style="padding: 10px 0; text-align: right; color: #2d3748;">${currency} ${((item.unit_price ?? 0) * (item.detail?.quantity ?? item.quantity ?? 1)).toFixed(2)}</td>
               </tr>
             `).join("") || "<tr><td colspan='3' style='padding:10px;text-align:center;color:#718096;'>No items listed</td></tr>";
 
@@ -167,6 +185,18 @@ export async function POST(
                   <strong style="color: #0b2545; display: inline-block; min-width: 110px;">Shipped On:</strong>
                   ${new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                 </p>
+                ${courierNameValue ? `
+                <p style="margin: 6px 0; color: #4a5568; font-size: 13px; line-height: 1.5;">
+                  <strong style="color: #0b2545; display: inline-block; min-width: 110px;">Courier:</strong>
+                  ${escapeHtml(courierDisplayName)}
+                </p>
+                ` : ""}
+                ${trackingNumberValue ? `
+                <p style="margin: 6px 0; color: #4a5568; font-size: 13px; line-height: 1.5;">
+                  <strong style="color: #0b2545; display: inline-block; min-width: 110px;">Tracking No:</strong>
+                  ${escapeHtml(trackingNumberValue)}
+                </p>
+                ` : ""}
                 <p style="margin: 6px 0; color: #4a5568; font-size: 13px; line-height: 1.5;">
                   <strong style="color: #0b2545; display: inline-block; min-width: 110px;">Delivery To:</strong>
                   ${shippingAddressText}
