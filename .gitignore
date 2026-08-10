@@ -34,4 +34,5 @@ ssh-key-*
 /*.log
 password_resets.log
 /*.js
-!/patch_medusa_razorpay.js
+!/patch_medusa_razorpay.js
+!/patch_medusa_payment_module.js
