@@ -37,8 +37,8 @@ export const BRAND = {
   contact: {
     phone: "+91 904 268 6793",
     phoneHref: "+919042686793",
-    addressLine1: "No.10 Kareem Mohideen sahib St, Chintadripet",
-    addressLine2: "Chennai - 600002, Tamil Nadu, India",
+    addressLine1: "No. 12, Shop No. 7, Narasingapuram Street, (Jothi Lodge Building), Mount Road",
+    addressLine2: "Chennai – 600 002, Tamil Nadu, India",
     supportEmail: "oceanstudentprojects@gmail.com",
   },
 
