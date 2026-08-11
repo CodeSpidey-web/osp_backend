@@ -88,7 +88,7 @@ export default function OrderDetailPage() {
 
   const loadOrder = () => {
     setLoading(true)
-    fetch(`/admin/orders/${id}?expand=fulfillments.labels`, { credentials: "include" })
+    fetch(`/admin/orders/${id}?fields=*items,*items.detail,*shipping_address,*payment_collections,*payment_collections.payments,*fulfillments,*fulfillments.labels`, { credentials: "include" })
       .then((r) => {
         if (!r.ok) throw new Error("Order not found or access denied")
         return r.json()

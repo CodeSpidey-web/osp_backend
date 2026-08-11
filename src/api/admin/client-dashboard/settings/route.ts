@@ -257,7 +257,7 @@ export async function POST(
       if (priceSetId) {
         await db.raw(
           "UPDATE price SET amount = ? WHERE price_set_id = ? AND LOWER(currency_code) = 'inr'",
-          [Number(flat_shipping_rate) * 100, priceSetId]
+          [Number(flat_shipping_rate) || 0, priceSetId]
         )
       }
     }

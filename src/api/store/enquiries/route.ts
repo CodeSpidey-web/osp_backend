@@ -1,5 +1,37 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { sendMail } from "../../../utils/mail";
+import {
+  BRAND,
+  escapeHtml,
+  getBackendUrl,
+  getStorefrontUrl,
+  renderBrandedEmail,
+  renderButton,
+  renderGradientHeading,
+  renderSummaryCard,
+} from "../../../utils/emailLayout";
+
+function enquiryDetailRows(
+  name: string,
+  email: string,
+  phone: string,
+  college: string,
+  message: string,
+  file_name?: string,
+  file_type?: string
+): [string, string][] {
+  const rows: [string, string][] = [
+    ["Student Name", name],
+    ["Email", `<a href="mailto:${escapeHtml(email)}" style="color:${BRAND.colors.green};text-decoration:underline;">${escapeHtml(email)}</a>`],
+    ["Phone", phone],
+    ["College Name", college],
+    ["Message", `<span style="white-space:pre-wrap;">${escapeHtml(message)}</span>`],
+  ];
+  if (file_name) {
+    rows.push(["Attachment", `${file_name}${file_type ? ` (${file_type})` : ""}`]);
+  }
+  return rows;
+}
 
 export async function POST(
   req: MedusaRequest,
@@ -57,71 +89,66 @@ export async function POST(
     ]);
 
     // Send Confirmation Email to the Student
+    const storefrontUrl = getStorefrontUrl();
+    const typoFamily = BRAND.typography.family;
+    const goldBg = `${BRAND.colors.gold}10`;
+    const goldBd = `${BRAND.colors.gold}30`;
+    const navy = BRAND.colors.navy;
+    const green = BRAND.colors.green;
+    const textBody = BRAND.colors.textBody;
+    const phoneHref = BRAND.contact.phoneHref;
+    const phoneText = BRAND.contact.phone;
+    const backendUrl = getBackendUrl();
+
     sendMail({
       to: email,
       subject: `Project Enquiry Received - #${enquiryId}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #edf2f7; border-radius: 8px;">
-          <h3 style="color: #136c39;">Hello ${name},</h3>
-          <p>Thank you for reaching out to <strong>Ocean Student Projects</strong>. We have received your project enquiry and a support advisor will review it shortly.</p>
-          <div style="background-color: #f7fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
-            <p style="margin: 0 0 5px 0;"><strong>Enquiry Reference:</strong> #${enquiryId}</p>
-            <p style="margin: 0 0 5px 0;"><strong>College:</strong> ${college}</p>
-            <p style="margin: 0 0 5px 0;"><strong>Message:</strong> ${message}</p>
-            ${file_name ? `<p style="margin: 0;"><strong>Uploaded Attachment:</strong> ${file_name}</p>` : ""}
-          </div>
-          <p>We usually respond within 24 hours. If you need urgent assistance, you can also message us directly on WhatsApp!</p>
-          <hr style="border: 0; border-top: 1px solid #edf2f7; margin: 20px 0;" />
-          <div style="text-align: center; font-size: 12px; color: #a0aec0;">
-            <p>Ocean Student Projects</p>
-            <p>No.10 Kareem Mohideen sahib St, Chintadripet, Chennai - 600002, Tamil Nadu, India.</p>
-          </div>
-        </div>
-      `
+      html: renderBrandedEmail({
+        previewText: `Thank you ${name}, we've received your project enquiry (ref #${enquiryId}). Our team will respond within 24 hours.`,
+        heroEmoji: "📝",
+        heroHeading: "We've Received Your Enquiry",
+        heroSubheading: `Thank you for reaching out to ${BRAND.name}. A support advisor will review your project details shortly.`,
+        body: `
+          ${renderSummaryCard("Enquiry Details", enquiryDetailRows(name, email, phone, college, message, file_name, file_type), "🔖")}
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="padding:18px 22px;background-color:${goldBg};border:1px solid ${goldBd};border-radius:14px;margin-top:22px;">
+            <tr>
+              <td style="font-family:${typoFamily};font-size:15px;line-height:1.6;color:${textBody};">
+                <p style="margin:0 0 10px 0;"><strong style="color:${navy};">⏱ Response Time</strong></p>
+                <p style="margin:0;">We usually respond within <strong>24 hours</strong>. If you need urgent assistance, call us directly on <a href="tel:${phoneHref}" style="color:${green};text-decoration:underline;font-weight:600;">${phoneText}</a> or message us on WhatsApp!</p>
+              </td>
+            </tr>
+          </table>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="text-align:center;margin-top:28px;">
+            <tr>
+              <td>
+                ${renderButton({ label: "Visit Our Storefront", href: storefrontUrl, variant: "primary" })}
+              </td>
+            </tr>
+          </table>
+        `,
+      }),
     }).catch(err => console.error("Error sending enquiry confirmation email:", err));
 
     // Send Alert Email to the Admin (oceanstudentprojects@gmail.com)
     sendMail({
       to: "oceanstudentprojects@gmail.com",
       subject: `🚨 New Project Enquiry - ${name} (${college})`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #edf2f7; border-radius: 8px; background-color: #fefaf6;">
-          <h3 style="color: #d69e2e; margin-top: 0;">🚨 New Student Project Enquiry Received</h3>
-          <table style="width: 100%; border-collapse: collapse; margin: 15px 0; background-color: #ffffff; border: 1px solid #edf2f7;">
+      html: renderBrandedEmail({
+        previewText: `New enquiry from ${name} (${college}). Reference #${enquiryId}. Review in the Admin Dashboard now.`,
+        heroEmoji: "🚨",
+        heroHeading: "New Project Enquiry",
+        heroSubheading: `A new student project enquiry has been submitted. Review the details and respond promptly.`,
+        body: `
+          ${renderSummaryCard("Student Enquiry", enquiryDetailRows(name, email, phone, college, message, file_name, file_type), "📥")}
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="text-align:center;margin-top:26px;">
             <tr>
-              <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7; width: 30%;">Student Name:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #edf2f7;">${name}</td>
+              <td>
+                ${renderButton({ label: "Open Admin Dashboard", href: `${backendUrl}/app/project-enquiries`, variant: "orange" })}
+              </td>
             </tr>
-            <tr>
-              <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7;">Email:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #edf2f7;"><a href="mailto:${email}">${email}</a></td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7;">Phone:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #edf2f7;">${phone}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7;">College Name:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #edf2f7;">${college}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7; vertical-align: top;">Message:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #edf2f7; white-space: pre-wrap;">${message}</td>
-            </tr>
-            ${file_name ? `
-            <tr>
-              <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7;">Attachment:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #edf2f7;">${file_name} (${file_type})</td>
-            </tr>
-            ` : ""}
           </table>
-          <div style="text-align: center; margin-top: 20px;">
-            <a href="http://localhost:9000/app/project-enquiries" target="_blank" style="background-color: #d69e2e; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
-              View in Admin Dashboard
-            </a>
-          </div>
-        </div>
-      `
+        `,
+      }),
     }).catch(err => console.error("Error sending admin enquiry alert email:", err));
 
     res.json({ success: true, id: enquiryId });

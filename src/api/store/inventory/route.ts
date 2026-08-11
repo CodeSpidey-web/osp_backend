@@ -16,9 +16,18 @@ export async function GET(
     const queryResult = await db.raw(`
       SELECT 
         pvii.variant_id,
-        COALESCE(SUM(il.stocked_quantity - il.reserved_quantity), 0)::integer as inventory_quantity
+        GREATEST(0, (
+          COALESCE(SUM(il.stocked_quantity), 0) - 
+          COALESCE(SUM(res.reserved_sum), 0)
+        ))::integer as inventory_quantity
       FROM product_variant_inventory_item pvii
       JOIN inventory_level il ON pvii.inventory_item_id = il.inventory_item_id
+      LEFT JOIN (
+        SELECT inventory_item_id, SUM(quantity) as reserved_sum
+        FROM reservation_item
+        WHERE deleted_at IS NULL
+        GROUP BY inventory_item_id
+      ) res ON res.inventory_item_id = pvii.inventory_item_id
       WHERE pvii.variant_id = ANY(?)
       GROUP BY pvii.variant_id
     `, [variantIds]);

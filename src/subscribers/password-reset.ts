@@ -2,6 +2,13 @@ import { SubscriberConfig, SubscriberArgs } from "@medusajs/framework"
 import * as fs from 'fs'
 import * as path from 'path'
 import { sendMail } from "../utils/mail"
+import {
+  BRAND,
+  renderBrandedEmail,
+  renderButton,
+  escapeHtml,
+  getStorefrontUrl,
+} from "../utils/emailLayout"
 
 export default async function passwordResetHandler({
   event,
@@ -9,7 +16,6 @@ export default async function passwordResetHandler({
 }: SubscriberArgs<any>) {
   const { data } = event
 
-  // Log to console
   console.log("================ PASSWORD RESET EVENT INTERCEPTED ================")
   console.log("Data:", JSON.stringify(data, null, 2))
   console.log("================================================================")
@@ -17,7 +23,6 @@ export default async function passwordResetHandler({
   const email = data.email || data.entity_id || data.identifier || data.user_email || "";
   const token = data.token || "";
 
-  // Write to the artifacts directory to avoid triggering the backend dev watch reload
   try {
     const logFilePath = 'C:\\Users\\Dell\\.gemini\\antigravity-ide\\brain\\aa0764c5-558a-42a7-9ce7-f0235580d60a\\password_resets.log'
     const logMessage = `[${new Date().toISOString()}] Email: ${email}, Token: ${token}\n`
@@ -31,36 +36,62 @@ export default async function passwordResetHandler({
     return
   }
 
-  // Send the password reset email to the customer with the link
   try {
-    const storefrontUrl = (process.env.STOREFRONT_URL || "http://localhost:3000").replace(/\/$/, "")
+    const storefrontUrl = getStorefrontUrl()
     const resetLink = `${storefrontUrl}/login?token=${encodeURIComponent(token)}`
+    const safeEmail = escapeHtml(email)
+    const safeResetLink = escapeHtml(resetLink)
 
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 8px;">
-        <h2 style="color: #0b2545; margin-top: 0;">Reset Your Password</h2>
-        <p>Hello,</p>
-        <p>We received a request to reset the password for your <strong>Ocean Student Projects</strong> account (<strong>${email}</strong>).</p>
-        <p>Click the button below to set a new password. This link is valid for a limited time:</p>
+    const body = `
+      <p style="color: ${BRAND.colors.textPrimary}; font-size: 15px; line-height: 1.65; margin: 0 0 10px 0;">
+        Hello,
+      </p>
+      <p style="color: ${BRAND.colors.textBody}; font-size: 15px; line-height: 1.65; margin: 0 0 6px 0;">
+        We received a request to reset the password for your
+        <strong style="color: ${BRAND.colors.green};">${escapeHtml(BRAND.name)}</strong> account
+        (<strong>${safeEmail}</strong>).
+      </p>
+      <p style="color: ${BRAND.colors.textBody}; font-size: 15px; line-height: 1.65; margin: 0 0 8px 0;">
+        Click the button below to set a new password. This link is valid for a limited time:
+      </p>
 
-        <div style="text-align: center; margin: 25px 0;">
-          <a href="${resetLink}" style="background-color: #136c39; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
-            Reset Password
-          </a>
-        </div>
-
-        <p style="color: #6b7280; font-size: 13px;">If the button does not work, copy and paste this link into your browser:</p>
-        <p style="word-break: break-all; color: #136c39; font-size: 12px;">${resetLink}</p>
-
-        <p style="color: #6b7280; font-size: 13px;">If you did not request a password reset, you can safely ignore this email.</p>
-        <br/>
-        <p style="margin-bottom: 0;">Warm regards,<br/>Ocean Student Projects Team</p>
+      <div style="text-align: center;">
+        ${renderButton({ label: "Reset Your Password", href: resetLink, variant: "primary" })}
       </div>
+
+      <div style="background-color: #f8fafc; padding: 16px 18px; border-radius: 10px; border: 1px solid ${BRAND.colors.borderSoft}; margin: 8px 0 0 0;">
+        <p style="margin: 0 0 6px 0; color: ${BRAND.colors.textMuted}; font-size: 12px; line-height: 1.5;">
+          If the button above does not work, copy and paste the link below into your browser:
+        </p>
+        <p style="margin: 0; word-break: break-all; color: ${BRAND.colors.green}; font-size: 12px; line-height: 1.55; font-family: 'Courier New', Courier, monospace;">
+          ${safeResetLink}
+        </p>
+      </div>
+
+      <div style="background-color: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid ${BRAND.colors.orange}; padding: 14px 16px; border-radius: 8px; margin: 22px 0 0 0;">
+        <p style="margin: 0; color: #7c2d12; font-size: 13px; line-height: 1.55;">
+          💡 <strong style="color: #9a3412;">Security Notice:</strong><br/>
+          If you did <em>not</em> request a password reset, you can safely ignore this email — your password will remain unchanged.
+        </p>
+      </div>
+
+      <p style="margin: 24px 0 0 0; color: ${BRAND.colors.textBody}; font-size: 14px; line-height: 1.65;">
+        Warm regards,<br/>
+        <strong style="color: ${BRAND.colors.green};">The ${escapeHtml(BRAND.shortName)} Team</strong>
+      </p>
     `
+
+    const emailHtml = renderBrandedEmail({
+      previewText: `Reset your ${BRAND.name} password`,
+      heroEmoji: "🔐",
+      heroHeading: "Reset Your Password",
+      heroSubheading: "Securely set a new password for your account.",
+      body,
+    })
 
     await sendMail({
       to: email,
-      subject: "Reset Your Password - Ocean Student Projects",
+      subject: `Reset Your Password - ${BRAND.name}`,
       html: emailHtml
     })
 

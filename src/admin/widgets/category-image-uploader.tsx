@@ -114,7 +114,7 @@ const CategoryImageUploader = ({ data }: { data: any }) => {
         <div className="space-y-4">
           <div className="relative w-48 h-48 border border-slate-700 rounded-lg overflow-hidden bg-slate-800 flex items-center justify-center">
             <img
-              src={imageUrl}
+              src={imageUrl.startsWith("http://localhost:9000/static") ? imageUrl.replace(/^http:\/\/localhost:\d+\/static/, "/static") : imageUrl}
               alt="Category Preview"
               className="object-contain w-full h-full"
             />

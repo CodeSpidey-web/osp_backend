@@ -1,5 +1,17 @@
 import { SubscriberConfig, SubscriberArgs } from "@medusajs/framework"
 import { sendMail } from "../utils/mail"
+import {
+  BRAND,
+  OrderItemRow,
+  escapeHtml,
+  getBackendUrl,
+  renderBrandedEmail,
+  renderButton,
+  renderOrderItemsTable,
+  renderSummaryCard,
+  renderTotalsTable,
+  TotalsRow,
+} from "../utils/emailLayout"
 
 export default async function adminOrderAlertHandler({
   event,
@@ -19,7 +31,10 @@ export default async function adminOrderAlertHandler({
         "shipping_address.first_name",
         "shipping_address.last_name",
         "items.title",
-        "items.detail.quantity"
+        "items.detail.quantity",
+        "items.unit_price",
+        "items.thumbnail",
+        "items.variant_title",
       ],
       filters: {
         id: orderId
@@ -45,47 +60,54 @@ export default async function adminOrderAlertHandler({
     }
 
     const customerName = `${order.shipping_address?.first_name || ""} ${order.shipping_address?.last_name || ""}`.trim() || "Guest Customer"
-    const itemsListHtml = order.items
-      ?.map((item: any) => `<li>${item.title} (Qty: ${item.detail?.quantity ?? item.quantity})</li>`)
-      .join("") || ""
+    const currency = (order.currency_code || "INR").toUpperCase()
 
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #fff8f8;">
-        <h2 style="color: #c53030; margin-top: 0;">🚨 Alert: New Order Placed</h2>
-        <p>A new order has been received on the Ocean Student Projects store.</p>
-        
-        <table style="width: 100%; border-collapse: collapse; margin: 20px 0; background-color: #ffffff; border: 1px solid #edf2f7; border-radius: 4px;">
+    const itemRows: OrderItemRow[] = (order.items || []).map((item: any) => ({
+      title: item.title + (item.variant_title ? ` (${item.variant_title})` : ""),
+      quantity: item.detail?.quantity ?? item.quantity ?? 1,
+      amount: `${currency} ${Number(item.unit_price ?? 0).toFixed(2)}`,
+    }))
+
+    const totals: TotalsRow[] = [
+      {
+        label: "Grand Total (Authoritative)",
+        value: `${currency} ${Number(grandTotal).toFixed(2)}`,
+        highlighted: true,
+      },
+    ]
+
+    const adminOrdersUrl = `${getBackendUrl()}/app/orders`
+    const orderIdText = `#${order.display_id || order.id}`
+    const customerEmailEscaped = escapeHtml(order.email)
+    const greenColor = BRAND.colors.green
+    const customerCellHtml = `${customerName} <a href="mailto:${customerEmailEscaped}" style="color:${greenColor};text-decoration:underline;">${customerEmailEscaped}</a>`
+
+    const summaryRows: [string, string][] = [
+      ["Order ID", orderIdText],
+      ["Customer", customerCellHtml],
+      ["Items Count", String(order.items?.length ?? 0)],
+    ]
+
+    const emailHtml = renderBrandedEmail({
+      previewText: `🚨 New order #${order.display_id || order.id} from ${customerName} · Total ${currency} ${Number(grandTotal).toFixed(2)}`,
+      heroEmoji: "🚨",
+      heroHeading: "New Order Received",
+      heroSubheading: `A new customer order has just been placed on ${BRAND.name}.`,
+      body: `
+        ${renderSummaryCard("Order Summary", summaryRows, "🛒")}
+        <div style="height:22px;"></div>
+        ${renderOrderItemsTable(itemRows)}
+        <div style="height:18px;"></div>
+        ${renderTotalsTable(totals)}
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="text-align:center;margin-top:28px;">
           <tr>
-            <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7; width: 30%;">Order ID:</td>
-            <td style="padding: 10px; border-bottom: 1px solid #edf2f7;">#${order.display_id || order.id}</td>
-          </tr>
-          <tr>
-            <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7;">Customer:</td>
-            <td style="padding: 10px; border-bottom: 1px solid #edf2f7;">${customerName} (${order.email})</td>
-          </tr>
-          <tr>
-            <td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #edf2f7;">Total Amount:</td>
-            <td style="padding: 10px; border-bottom: 1px solid #edf2f7; color: #136c39; font-weight: bold;">
-              ${order.currency_code.toUpperCase()} ${Number(grandTotal).toFixed(2)}
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 10px; font-weight: bold; vertical-align: top;">Items:</td>
-            <td style="padding: 10px;">
-              <ul style="margin: 0; padding-left: 20px;">
-                ${itemsListHtml}
-              </ul>
+            <td>
+              ${renderButton({ label: "View in Admin Panel", href: adminOrdersUrl, variant: "primary" })}
             </td>
           </tr>
         </table>
-        
-        <div style="text-align: center; margin-top: 25px;">
-          <a href="http://localhost:9000/app/orders" target="_blank" style="background-color: #136c39; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
-            View Order in Admin Panel
-          </a>
-        </div>
-      </div>
-    `
+      `,
+    })
 
     // Send to admin email address: oceanstudentprojects@gmail.com
     await sendMail({

@@ -10,7 +10,7 @@ const WebsiteSettingsPage = () => {
   const [email, setEmail] = useState<string>("")
   
   // Tax/GST State
-  const [taxRate, setTaxRate] = useState<number>(18)
+  const [taxRate, setTaxRate] = useState<number | string>(18)
   const [isTaxInclusive, setIsTaxInclusive] = useState<boolean>(true)
   const [taxOverrides, setTaxOverrides] = useState<Array<{ id?: string; rate: number; code?: string; name?: string; product_id: string; product_title: string }>>([])
   const [products, setProducts] = useState<Array<{ id: string; title: string }>>([])
@@ -18,9 +18,9 @@ const WebsiteSettingsPage = () => {
   const [newOverrideRate, setNewOverrideRate] = useState<string>("")
 
   // Shipping settings state
-  const [flatShippingRate, setFlatShippingRate] = useState<number>(70)
-  const [shippingGst, setShippingGst] = useState<number>(18)
-  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(999)
+  const [flatShippingRate, setFlatShippingRate] = useState<number | string>(70)
+  const [shippingGst, setShippingGst] = useState<number | string>(18)
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number | string>(999)
   const [deliveryEstimate, setDeliveryEstimate] = useState<string>("Within 3-5 working days")
 
   const [loading, setLoading] = useState(true)
@@ -144,6 +144,35 @@ const WebsiteSettingsPage = () => {
     setSaving(true)
     setMessage(null)
 
+    const parsedTaxRate = taxRate === "" ? 18 : Number(taxRate)
+    const parsedFlatShippingRate = flatShippingRate === "" ? 0 : Number(flatShippingRate)
+    const parsedShippingGst = shippingGst === "" ? 18 : Number(shippingGst)
+    const parsedFreeShippingThreshold = freeShippingThreshold === "" ? 0 : Number(freeShippingThreshold)
+
+    if (isNaN(parsedTaxRate) || parsedTaxRate < 0 || parsedTaxRate > 100) {
+      setMessage({ text: "Please enter a valid Default GST Rate (between 0% and 100%).", type: "error" })
+      setSaving(false)
+      return
+    }
+
+    if (isNaN(parsedFlatShippingRate) || parsedFlatShippingRate < 0) {
+      setMessage({ text: "Please enter a valid Flat Shipping Rate (₹0 or greater).", type: "error" })
+      setSaving(false)
+      return
+    }
+
+    if (isNaN(parsedShippingGst) || parsedShippingGst < 0 || parsedShippingGst > 100) {
+      setMessage({ text: "Please enter a valid Shipping GST Rate (between 0% and 100%).", type: "error" })
+      setSaving(false)
+      return
+    }
+
+    if (isNaN(parsedFreeShippingThreshold) || parsedFreeShippingThreshold < 0) {
+      setMessage({ text: "Please enter a valid Free Shipping Threshold (₹0 or greater).", type: "error" })
+      setSaving(false)
+      return
+    }
+
     try {
       const res = await fetch("/admin/client-dashboard/settings", {
         method: "POST",
@@ -152,7 +181,7 @@ const WebsiteSettingsPage = () => {
           logo_url: logoUrl,
           phone,
           email,
-          tax_rate: taxRate,
+          tax_rate: parsedTaxRate,
           is_tax_inclusive: isTaxInclusive,
           tax_overrides: taxOverrides.map(o => ({
             rate: o.rate,
@@ -160,9 +189,9 @@ const WebsiteSettingsPage = () => {
             name: o.name,
             product_id: o.product_id
           })),
-          flat_shipping_rate: flatShippingRate,
-          shipping_gst: shippingGst,
-          free_shipping_threshold: freeShippingThreshold,
+          flat_shipping_rate: parsedFlatShippingRate,
+          shipping_gst: parsedShippingGst,
+          free_shipping_threshold: parsedFreeShippingThreshold,
           delivery_estimate: deliveryEstimate
         }),
         credentials: "include",
@@ -172,6 +201,10 @@ const WebsiteSettingsPage = () => {
         throw new Error("Failed to save settings.")
       }
 
+      setTaxRate(parsedTaxRate)
+      setFlatShippingRate(parsedFlatShippingRate)
+      setShippingGst(parsedShippingGst)
+      setFreeShippingThreshold(parsedFreeShippingThreshold)
       setMessage({ text: "Website settings saved successfully!", type: "success" })
     } catch (err: any) {
       setMessage({ text: err.message || "Failed to save website settings.", type: "error" })
@@ -285,11 +318,10 @@ const WebsiteSettingsPage = () => {
                   type="number"
                   size="small"
                   value={taxRate}
-                  onChange={(e) => setTaxRate(Number(e.target.value))}
+                  onChange={(e) => setTaxRate(e.target.value)}
                   placeholder="18"
                   min={0}
                   max={100}
-                  required
                 />
               </div>
             </div>
@@ -302,10 +334,9 @@ const WebsiteSettingsPage = () => {
                   type="number"
                   size="small"
                   value={flatShippingRate}
-                  onChange={(e) => setFlatShippingRate(Number(e.target.value))}
+                  onChange={(e) => setFlatShippingRate(e.target.value)}
                   placeholder="70"
                   min={0}
-                  required
                 />
               </div>
 
@@ -315,11 +346,10 @@ const WebsiteSettingsPage = () => {
                   type="number"
                   size="small"
                   value={shippingGst}
-                  onChange={(e) => setShippingGst(Number(e.target.value))}
+                  onChange={(e) => setShippingGst(e.target.value)}
                   placeholder="18"
                   min={0}
                   max={100}
-                  required
                 />
               </div>
 
@@ -329,10 +359,9 @@ const WebsiteSettingsPage = () => {
                   type="number"
                   size="small"
                   value={freeShippingThreshold}
-                  onChange={(e) => setFreeShippingThreshold(Number(e.target.value))}
+                  onChange={(e) => setFreeShippingThreshold(e.target.value)}
                   placeholder="999"
                   min={0}
-                  required
                 />
               </div>
             </div>

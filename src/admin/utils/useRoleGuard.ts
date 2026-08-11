@@ -52,6 +52,7 @@ export function applySidebarRules(userEmail: string | null) {
       aside a[href="/app/orders"],
       aside a[href="/app/products"],
       aside a[href="/app/products/"],
+      aside a[href="/app/categories"],
       aside a[href="/app/promotions"],
       aside a[href="/app/price-lists"],
       aside a[href="/app/inventory"],
@@ -63,6 +64,7 @@ export function applySidebarRules(userEmail: string | null) {
       aside a[href*="options"],
       :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/orders"]),
       :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/products"]),
+      :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/categories"]),
       :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/promotions"]),
       :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/price-lists"]),
       :is(aside, nav, [role="navigation"], [role="dialog"]) :is(li, div):has(> a[href="/app/inventory"]),
@@ -98,7 +100,7 @@ export function applySidebarRules(userEmail: string | null) {
       /* Make sure custom client links are visible */
       a[href="/app/dashboard"],
       a[href="/app/products-simple"],
-      a[href="/app/categories"],
+      a[href="/app/categories-manager"],
       a[href="/app/inventory-management"],
       a[href="/app/order-management"],
       a[href="/app/product-reviews"],
@@ -163,8 +165,8 @@ export function applySidebarRules(userEmail: string | null) {
       }
 
       /* Elevate categories custom route to order 3 in the sidebar */
-      li:has(a[href="/app/categories"]),
-      div:has(> a[href="/app/categories"]) {
+      li:has(a[href="/app/categories-manager"]),
+      div:has(> a[href="/app/categories-manager"]) {
         order: 3 !important;
       }
 
@@ -222,6 +224,7 @@ export function applySidebarRules(userEmail: string | null) {
     // Hide custom client links for developer
     styleEl.innerHTML = `
       a[href="/app/dashboard"],
+      a[href="/app/categories-manager"],
       a[href="/app/inventory-management"],
       a[href="/app/order-management"],
       a[href="/app/product-reviews"],

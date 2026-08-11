@@ -106,6 +106,23 @@ export async function POST(
       })
     }
 
+    // Ensure stale reserved_quantity is reconciled with active reservations
+    try {
+      const db = await getDb(req)
+      await db.raw(`
+        UPDATE inventory_level il
+        SET reserved_quantity = COALESCE((
+          SELECT SUM(r.quantity)
+          FROM reservation_item r
+          WHERE r.inventory_item_id = il.inventory_item_id
+            AND r.deleted_at IS NULL
+        ), 0)
+        WHERE il.inventory_item_id = ?
+      `, [resolvedItemId])
+    } catch (reconcileErr) {
+      console.warn("Failed to reconcile reserved_quantity:", reconcileErr)
+    }
+
     // 3. Resolve variant details and log to history if there is any change
     const effectiveVariantId = variant_id || null
     if (changeAmount !== 0) {
