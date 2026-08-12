@@ -372,6 +372,8 @@ const CategoriesPage = () => {
         name,
         handle: handleVal,
         parent_category_id: parentId || null,
+        is_active: true,
+        is_internal: false,
       }
 
       if (editingCategory) {
