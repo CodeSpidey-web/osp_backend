@@ -110,11 +110,17 @@ const CategoriesPage = () => {
   const [saving, setSaving] = useState(false)
 
   // Popular Categories Tab State
-  const [activeTab, setActiveTab] = useState<"all" | "popular">("all")
+  const [activeTab, setActiveTab] = useState<"all" | "popular" | "explore">("all")
   const [popularCategories, setPopularCategories] = useState<{ id: string; image_url: string }[]>([])
   const [popularSaving, setPopularSaving] = useState(false)
   const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [selectedAddId, setSelectedAddId] = useState("")
+
+  // Explore Our Projects Tab State
+  const [exploreCategories, setExploreCategories] = useState<{ id: string; image_url: string }[]>([])
+  const [exploreSaving, setExploreSaving] = useState(false)
+  const [selectedExploreAddId, setSelectedExploreAddId] = useState("")
+  const [uploadingExploreId, setUploadingExploreId] = useState<string | null>(null)
 
   const getAdminImageUrl = (url?: string | null) => {
     if (!url) return ""
@@ -218,6 +224,100 @@ const CategoriesPage = () => {
     }
   }
 
+  const loadExploreCategories = async () => {
+    try {
+      const res = await fetch("/admin/client-dashboard/explore-projects", { credentials: "include" })
+      const data = await res.json()
+      setExploreCategories(data.explore_projects || [])
+    } catch (err) {
+      console.error("Failed to load explore projects categories:", err)
+    }
+  }
+
+  const handleAddExplore = () => {
+    if (!selectedExploreAddId) return
+    if (exploreCategories.some((c) => c.id === selectedExploreAddId)) {
+      alert("This category is already selected for Explore Our Projects.")
+      return
+    }
+    if (exploreCategories.length >= 10) {
+      alert("You can select a maximum of 10 categories for Explore Our Projects.")
+      return
+    }
+    setExploreCategories((prev) => [...prev, { id: selectedExploreAddId, image_url: "" }])
+    setSelectedExploreAddId("")
+  }
+
+  const handleRemoveExplore = (id: string) => {
+    setExploreCategories((prev) => prev.filter((c) => c.id !== id))
+  }
+
+  const handleMoveExplore = (index: number, direction: "up" | "down") => {
+    if (direction === "up" && index === 0) return
+    if (direction === "down" && index === exploreCategories.length - 1) return
+
+    const newItems = [...exploreCategories]
+    const targetIndex = direction === "up" ? index - 1 : index + 1
+    const temp = newItems[index]
+    newItems[index] = newItems[targetIndex]
+    newItems[targetIndex] = temp
+    setExploreCategories(newItems)
+  }
+
+  const handleExploreImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, catId: string) => {
+    if (!e.target.files || e.target.files.length === 0) return
+    setUploadingExploreId(catId)
+    try {
+      const file = e.target.files[0]
+      const formData = new FormData()
+      formData.append("files", file)
+
+      const res = await fetch("/admin/uploads", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      })
+      if (!res.ok) throw new Error("Upload failed")
+      const data = await res.json()
+      if (data.files?.[0]?.url) {
+        const url = data.files[0].url
+        setExploreCategories((prev) =>
+          prev.map((c) => c.id === catId ? { ...c, image_url: url } : c)
+        )
+      }
+    } catch (err) {
+      alert("Failed to upload image. Please try again.")
+    } finally {
+      setUploadingExploreId(null)
+    }
+  }
+
+  const handleRemoveExploreImage = (catId: string) => {
+    setExploreCategories((prev) =>
+      prev.map((c) => c.id === catId ? { ...c, image_url: "" } : c)
+    )
+  }
+
+  const handleSaveExplore = async () => {
+    setExploreSaving(true)
+    try {
+      const res = await fetch("/admin/client-dashboard/explore-projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ explore_projects: exploreCategories }),
+        credentials: "include",
+      })
+      if (!res.ok) {
+        throw new Error("Failed to save selection.")
+      }
+      alert("Explore Our Projects categories saved successfully!")
+    } catch (err: any) {
+      alert(err.message || "Failed to save selection.")
+    } finally {
+      setExploreSaving(false)
+    }
+  }
+
   // Form Fields
   const [name, setName] = useState("")
   const [handle, setHandle] = useState("")
@@ -242,6 +342,7 @@ const CategoriesPage = () => {
     if (authLoading || !authorized) return
     loadCategories()
     loadPopularCategories()
+    loadExploreCategories()
   }, [authLoading, authorized])
 
   const handleOpenCreate = () => {
@@ -366,9 +467,20 @@ const CategoriesPage = () => {
         >
           Popular Categories
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("explore")}
+          className={`pb-2.5 text-sm font-semibold transition-all border-b-2 bg-transparent cursor-pointer px-2 ${
+            activeTab === "explore"
+              ? "border-emerald-500 text-emerald-400 font-bold"
+              : "border-transparent text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Explore Our Projects
+        </button>
       </div>
 
-      {activeTab === "all" ? (
+      {activeTab === "all" && (
         <>
           <div className="mb-4">
             <Input 
@@ -425,7 +537,9 @@ const CategoriesPage = () => {
             </div>
           )}
         </>
-      ) : (
+      )}
+
+      {activeTab === "popular" && (
         <div className="space-y-6">
           <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-6 space-y-4">
             <Heading level="h2" className="text-sm font-semibold">Add Category to Popular Selection ({popularCategories.length} / 20)</Heading>
@@ -547,6 +661,133 @@ const CategoriesPage = () => {
           <div className="flex justify-end pt-4 border-t border-slate-800">
             <Button onClick={handleSavePopular} disabled={popularSaving} variant="primary">
               {popularSaving ? "Saving Selection..." : "Save Selection"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "explore" && (
+        <div className="space-y-6">
+          <div className="bg-slate-900/30 border border-slate-800 rounded-lg p-6 space-y-4">
+            <Heading level="h2" className="text-sm font-semibold">Explore Our Projects — {exploreCategories.length}/10 selected</Heading>
+            
+            <div className="flex gap-4">
+              <select 
+                value={selectedExploreAddId}
+                onChange={(e) => setSelectedExploreAddId(e.target.value)}
+                className="flex-grow bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+              >
+                <option value="">Choose a category to add...</option>
+                {hierarchicalCategories.map((cat) => (
+                  <option 
+                    key={cat.id} 
+                    value={cat.id}
+                    style={{
+                      fontWeight: cat.level === 0 ? 'bold' : 'normal',
+                      color: cat.level === 0 ? '#10b981' : cat.level === 1 ? '#f8fafc' : '#94a3b8'
+                    }}
+                  >
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+              <Button onClick={handleAddExplore} disabled={!selectedExploreAddId}>Add Category</Button>
+            </div>
+          </div>
+
+          <div className="w-full overflow-x-auto table-scroll-all">
+            <Table>
+              <Table.Header>
+                <Table.Row>
+                  <Table.HeaderCell>Order</Table.HeaderCell>
+                  <Table.HeaderCell>Category Name</Table.HeaderCell>
+                  <Table.HeaderCell>Explore Image</Table.HeaderCell>
+                  <Table.HeaderCell className="text-right">Actions</Table.HeaderCell>
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {exploreCategories.map((p, idx) => {
+                  const catName = categoryNameMap.get(p.id) || "Unknown Category"
+                  
+                  return (
+                    <Table.Row key={p.id}>
+                      <Table.Cell className="font-semibold text-slate-400">#{idx + 1}</Table.Cell>
+                      <Table.Cell className="font-semibold text-slate-200">{catName}</Table.Cell>
+                      <Table.Cell>
+                        <div className="flex items-center gap-4">
+                          {p.image_url ? (
+                            <div className="relative border border-slate-800 p-1 rounded bg-slate-900 w-16 h-16 flex items-center justify-center">
+                              <img src={getAdminImageUrl(p.image_url)} alt={catName} className="max-w-full max-h-full object-contain" />
+                            </div>
+                          ) : (
+                            <div className="w-16 h-16 rounded bg-slate-900 border border-slate-850 flex items-center justify-center text-slate-500 text-[10px] text-center">No Image</div>
+                          )}
+                          
+                          <div className="space-y-1.5">
+                            <input 
+                              type="file" 
+                              id={`explore-img-upload-${p.id}`}
+                              accept="image/*"
+                              className="hidden" 
+                              onChange={(e) => handleExploreImageUpload(e, p.id)} 
+                            />
+                            <label 
+                              htmlFor={`explore-img-upload-${p.id}`}
+                              className="cursor-pointer inline-flex items-center justify-center px-3 py-1.5 bg-slate-900 border border-slate-800 text-[10px] font-semibold rounded text-slate-200 hover:bg-slate-800 transition"
+                            >
+                              {uploadingExploreId === p.id ? "Uploading..." : p.image_url ? "Replace Image" : "Upload Image"}
+                            </label>
+                            
+                            {p.image_url && (
+                              <button 
+                                type="button" 
+                                onClick={() => handleRemoveExploreImage(p.id)}
+                                className="block text-[10px] text-rose-400 hover:text-rose-300 font-semibold bg-transparent border-0 cursor-pointer"
+                              >
+                                Remove Image
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell className="text-right space-x-2">
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveExplore(idx, "up")}
+                        >
+                          ↑
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="small"
+                          disabled={idx === exploreCategories.length - 1}
+                          onClick={() => handleMoveExplore(idx, "down")}
+                        >
+                          ↓
+                        </Button>
+                        <Button variant="danger" size="small" onClick={() => handleRemoveExplore(p.id)}>
+                          Remove
+                        </Button>
+                      </Table.Cell>
+                    </Table.Row>
+                  )
+                })}
+                {exploreCategories.length === 0 && (
+                  <Table.Row>
+                    <Table.Cell {...({ colSpan: 4 } as any)} className="text-center italic py-8 text-slate-500">
+                      No categories selected for Explore Our Projects. Use the selector above to add up to 10 categories.
+                    </Table.Cell>
+                  </Table.Row>
+                )}
+              </Table.Body>
+            </Table>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-slate-800">
+            <Button onClick={handleSaveExplore} disabled={exploreSaving} variant="primary">
+              {exploreSaving ? "Saving Selection..." : "Save Selection"}
             </Button>
           </div>
         </div>
