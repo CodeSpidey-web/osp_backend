@@ -51,6 +51,59 @@ function uppercaseCurrencyMiddleware(req: Request, res: Response, next: NextFunc
   next();
 }
 
+async function validateCartAdditionMiddleware(req: Request, res: Response, next: NextFunction) {
+  // We only care about line-items addition: /store/carts/:id/line-items
+  if (!req.path.endsWith('/line-items') || req.method !== 'POST') {
+    return next();
+  }
+
+  const { variant_id } = req.body as { variant_id?: string };
+  if (!variant_id) {
+    return next();
+  }
+
+  try {
+    const projectParentId = process.env.PROJECT_PARENT_CATEGORY_ID;
+    if (!projectParentId) {
+      console.error("CRITICAL ERROR: PROJECT_PARENT_CATEGORY_ID environment variable is missing!");
+      return res.status(500).json({
+        type: "missing_config",
+        message: "Store configuration error: PROJECT_PARENT_CATEGORY_ID is not defined."
+      });
+    }
+
+    const db = req.scope.resolve("__pg_connection__") as any;
+    const result = await db.raw(`
+      WITH RECURSIVE category_path AS (
+        SELECT pcp.product_category_id AS id, pc.parent_category_id
+        FROM product_variant pv
+        JOIN product_category_product pcp ON pcp.product_id = pv.product_id
+        JOIN product_category pc ON pc.id = pcp.product_category_id
+        WHERE pv.id = ? AND pc.deleted_at IS NULL AND pv.deleted_at IS NULL
+        
+        UNION ALL
+        
+        SELECT parent.id, parent.parent_category_id
+        FROM product_category parent
+        JOIN category_path child ON child.parent_category_id = parent.id
+        WHERE parent.deleted_at IS NULL
+      )
+      SELECT id FROM category_path WHERE id = ?;
+    `, [variant_id, projectParentId]);
+
+    if (result.rows && result.rows.length > 0) {
+      return res.status(400).json({
+        type: "not_allowed",
+        message: "Custom projects cannot be added to the shopping cart. Please use the 'Order Now' WhatsApp flow on the product page."
+      });
+    }
+  } catch (err) {
+    console.error("Error in validateCartAdditionMiddleware:", err);
+  }
+
+  next();
+}
+
 export default defineMiddlewares({
   routes: [
     {
@@ -63,6 +116,11 @@ export default defineMiddlewares({
     {
       matcher: "/admin/*",
       middlewares: [uppercaseCurrencyMiddleware],
+    },
+    {
+      matcher: "/store/carts/*",
+      method: "POST",
+      middlewares: [validateCartAdditionMiddleware],
     },
   ],
 })
