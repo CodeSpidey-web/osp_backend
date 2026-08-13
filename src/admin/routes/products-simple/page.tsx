@@ -123,6 +123,7 @@ const SimpleProductsPage = () => {
   const [page, setPage] = useState(1)
   const pageSize = 20
   const [totalProducts, setTotalProducts] = useState(0)
+  const [order, setOrder] = useState("-created_at")
 
   // Latest Products Tab State
   const [activeTab, setActiveTab] = useState<"all" | "latest">("all")
@@ -176,6 +177,7 @@ const SimpleProductsPage = () => {
       params.set("limit", String(pageSize))
       params.set("offset", String((page - 1) * pageSize))
       if (debouncedSearch.trim()) params.set("q", debouncedSearch.trim())
+      if (order) params.set("order", order)
       const prodRes = await fetch(`/admin/products?${params.toString()}`, { credentials: "include" })
       const prodData = await prodRes.json()
       setProducts(prodData.products || [])
@@ -312,7 +314,11 @@ const SimpleProductsPage = () => {
   useEffect(() => {
     if (authLoading || !authorized) return
     loadProducts()
-  }, [authLoading, authorized, page, debouncedSearch])
+  }, [authLoading, authorized, page, debouncedSearch, order])
+
+  useEffect(() => {
+    setPage(1)
+  }, [order])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -576,11 +582,27 @@ const SimpleProductsPage = () => {
       {activeTab === "all" ? (
         <>
           <div className="mb-4">
-            <Input 
-              placeholder="Search products by title, SKU, description..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <div className="flex gap-4 items-center">
+              <div className="flex-1">
+                <Input 
+                  placeholder="Search products by title, SKU, description..." 
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="w-48">
+                <select
+                  value={order}
+                  onChange={(e) => setOrder(e.target.value)}
+                  className="w-full h-8 px-2 bg-slate-900 border border-slate-800 rounded text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  <option value="-created_at">Newest First</option>
+                  <option value="created_at">Oldest First</option>
+                  <option value="title">Title (A-Z)</option>
+                  <option value="-title">Title (Z-A)</option>
+                </select>
+              </div>
+            </div>
             <Text className="text-xs text-slate-400 mt-1">
               {debouncedSearch ? `Showing products matching "${debouncedSearch}"` : "Showing all products"} · {totalProducts.toLocaleString()} total
             </Text>
