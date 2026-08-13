@@ -260,6 +260,21 @@ async function adminProductSearchMiddleware(req: Request, res: Response, next: N
   next();
 }
 
+async function protectProjectCategoryDeleteMiddleware(req: Request, res: Response, next: NextFunction) {
+  if (req.method === 'DELETE') {
+    const parts = req.path.split('/');
+    const categoryId = parts[parts.length - 1];
+    const projectParentId = process.env.PROJECT_PARENT_CATEGORY_ID;
+
+    if (categoryId && projectParentId && categoryId === projectParentId) {
+      return res.status(400).json({
+        message: "The main projects category ('Unnamed') is critical for ordering workflows and cannot be deleted."
+      });
+    }
+  }
+  next();
+}
+
 export default defineMiddlewares({
   routes: [
     {
@@ -268,6 +283,11 @@ export default defineMiddlewares({
       bodyParser: {
         sizeLimit: "20mb",
       },
+    },
+    {
+      matcher: "/admin/product-categories/*",
+      method: "DELETE",
+      middlewares: [protectProjectCategoryDeleteMiddleware],
     },
     {
       matcher: "/admin/products",
